@@ -3,13 +3,13 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { thisWeekEvents, nextWeekEvents, weekAfterNextEvents, type Event } from '@/lib/mockData'
+import type { Event } from '@/lib/types'
 
-const tabs = [
-  { id: 'this', label: '이번주', events: thisWeekEvents },
-  { id: 'next', label: '다음주', events: nextWeekEvents },
-  { id: 'after', label: '다다음주', events: weekAfterNextEvents },
-]
+type Props = {
+  thisWeek: Event[]
+  nextWeek: Event[]
+  weekAfterNext: Event[]
+}
 
 const statusConfig = {
   available: { label: '예약 가능', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
@@ -107,7 +107,12 @@ function EventCard({ event }: { event: Event }) {
   )
 }
 
-export default function EventTabs() {
+export default function EventTabs({ thisWeek, nextWeek, weekAfterNext }: Props) {
+  const tabs = [
+    { id: 'this', label: '이번주', events: thisWeek },
+    { id: 'next', label: '다음주', events: nextWeek },
+    { id: 'after', label: '다다음주', events: weekAfterNext },
+  ]
   const [activeTab, setActiveTab] = useState('this')
   const currentEvents = tabs.find((t) => t.id === activeTab)?.events ?? []
 

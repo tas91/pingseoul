@@ -6,13 +6,20 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "supabase:login": "supabase login",
+    "supabase:link": "supabase link --project-ref $SUPABASE_PROJECT_REF",
+    "supabase:push": "supabase db push",
+    "supabase:reset": "supabase db reset --linked",
+    "supabase:seed": "psql \"$STAGING_DB_URL\" -f supabase/seed.sql"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.106.1",
+    "lucide-react": "^0.400.0",
     "next": "14.2.29",
     "react": "^18",
-    "react-dom": "^18",
-    "lucide-react": "^0.400.0"
+    "react-dom": "^18"
   },
   "devDependencies": {
     "@types/node": "^20",
