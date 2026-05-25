@@ -40,9 +40,9 @@ create policy "Users can insert own profile"
 -- ───────────────────────────────────────────────
 alter table public.admins enable row level security;
 
-create policy "Admins can view admin records"
+create policy "Admins can view own record"
   on public.admins for select
-  using (auth.uid() = id or public.is_admin());
+  using (auth.uid() = id);
 
 -- ───────────────────────────────────────────────
 -- events (extends 0002_rls.sql public SELECT policy)
