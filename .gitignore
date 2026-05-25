@@ -37,3 +37,6 @@ next-env.d.ts
 # Claude Code / OMC internal files
 .claude/
 .omc/
+
+# Supabase
+supabase/.temp/
