@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
-import { Calendar, LayoutGrid, Megaphone, LogOut, Menu, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Calendar, LayoutGrid, Megaphone, LogOut, Menu, X, Users } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
-const NAV_ITEMS = [
+const BASE_NAV = [
   { label: '예약 현황', href: '/admin/reservations', icon: Calendar },
   { label: '테이블맵', href: '/admin/table-map', icon: LayoutGrid },
   { label: '이벤트 관리', href: '/admin/events', icon: Megaphone },
@@ -15,14 +16,35 @@ export default function AdminSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
 
-  const handleLogout = () => {
-    router.push('/')
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase
+        .from('admin_profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => setIsSuperAdmin(data?.role === 'super_admin'))
+    })
+  }, [])
+
+  const navItems = [
+    ...BASE_NAV,
+    ...(isSuperAdmin ? [{ label: '관리자 관리', href: '/admin/members', icon: Users }] : []),
+  ]
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/admin/login')
   }
 
   const NavLinks = () => (
     <>
-      {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
+      {navItems.map(({ label, href, icon: Icon }) => {
         const active = pathname.startsWith(href)
         return (
           <Link
