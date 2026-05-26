@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
+import type { User } from '@supabase/supabase-js'
 
 const navLinks = [
   { href: '/events', label: '이벤트' },
@@ -14,12 +16,27 @@ const navLinks = [
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40)
     window.addEventListener('scroll', onScroll)
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  const authLink = user
+    ? { href: '/mypage', label: user.user_metadata?.name ? `${user.user_metadata.name}` : '마이페이지' }
+    : { href: '/login', label: '로그인' }
 
   return (
     <header
@@ -61,8 +78,11 @@ export default function Navbar() {
 
           {/* CTA */}
           <div className="hidden md:flex items-center gap-4">
-            <Link href="/mypage" className="text-sm text-[#A0A0A0] hover:text-white transition-colors">
-              마이페이지
+            <Link
+              href={authLink.href}
+              className="text-sm text-[#A0A0A0] hover:text-white transition-colors"
+            >
+              {authLink.label}
             </Link>
             <Link
               href="/reservation"
@@ -103,8 +123,12 @@ export default function Navbar() {
             </Link>
           ))}
           <div className="pt-4 border-t border-white/10 flex flex-col gap-3">
-            <Link href="/mypage" className="text-base text-[#A0A0A0] hover:text-white py-2 transition-colors">
-              마이페이지
+            <Link
+              href={authLink.href}
+              className="text-base text-[#A0A0A0] hover:text-white py-2 transition-colors"
+              onClick={() => setMenuOpen(false)}
+            >
+              {authLink.label}
             </Link>
             <Link
               href="/reservation"
