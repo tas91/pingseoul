@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 
@@ -51,9 +53,14 @@ export default function MyPage() {
           </div>
         </div>
 
-        <p className="text-ping-gray text-sm text-center mt-8">
-          예약 내역 및 포인트 기능은 준비 중입니다.
-        </p>
+        <Link
+          href="/mypage/reservations"
+          className="flex items-center justify-between mt-6 px-5 py-4 bg-white/5 border border-white/10
+                     rounded-xl hover:border-white/20 transition-colors"
+        >
+          <span className="text-sm text-white font-medium">예약 내역</span>
+          <ChevronRight size={16} className="text-ping-gray" />
+        </Link>
 
         <button
           onClick={handleLogout}
