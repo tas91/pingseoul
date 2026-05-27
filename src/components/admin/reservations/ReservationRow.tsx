@@ -15,9 +15,20 @@ const INCENTIVE_LABEL: Record<string, string> = {
   none:           '—',
 }
 
-export default function ReservationRow({ item }: { item: ReservationListItem }) {
+export default function ReservationRow({
+  item,
+  onClick,
+}: {
+  item: ReservationListItem
+  onClick?: () => void
+}) {
   return (
-    <tr className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors">
+    <tr
+      className={`border-b border-white/5 last:border-0 transition-colors ${
+        onClick ? 'cursor-pointer hover:bg-white/[0.05]' : 'hover:bg-white/[0.02]'
+      }`}
+      onClick={onClick}
+    >
       <td className="px-4 py-3 text-xs text-ping-gray font-mono whitespace-nowrap">
         {item.reservation_number}
       </td>

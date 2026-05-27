@@ -31,9 +31,17 @@ export interface ReservationListItem {
   guest_phone: string | null
   guest_instagram: string | null
   request_note: string | null
+  admin_memo: string | null
+  reject_reason: string | null
+  approved_at: string | null
   incentive_type: DepartureIncentive
   table: ReservationTable | null
 }
+
+export type ReservationAction =
+  | { action: 'approve' }
+  | { action: 'reject'; reject_reason: string }
+  | { action: 'memo'; admin_memo: string }
 
 export interface ReservationFilters {
   business_date?: string

@@ -4,11 +4,15 @@ import { useState } from 'react'
 import { useAdminReservations } from '@/hooks/useReservations'
 import ReservationFilterBar from '@/components/admin/reservations/ReservationFilterBar'
 import ReservationTable from '@/components/admin/reservations/ReservationTable'
+import ReservationDrawer from '@/components/admin/reservations/ReservationDrawer'
 import type { ReservationFilters } from '@/lib/types'
 
 export default function ReservationsPage() {
   const [filters, setFilters] = useState<ReservationFilters>({ status: 'all' })
-  const { reservations, loading, error } = useAdminReservations(filters)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const { reservations, loading, error, updateReservation } = useAdminReservations(filters)
+
+  const selectedItem = reservations.find((r) => r.id === selectedId) ?? null
 
   function handleFilterChange(next: Partial<ReservationFilters>) {
     setFilters((prev) => ({ ...prev, ...next }))
@@ -29,7 +33,17 @@ export default function ReservationsPage() {
         <p className="text-sm text-ping-red mb-4">{error}</p>
       )}
 
-      <ReservationTable items={reservations} loading={loading} />
+      <ReservationTable
+        items={reservations}
+        loading={loading}
+        onRowClick={setSelectedId}
+      />
+
+      <ReservationDrawer
+        item={selectedItem}
+        onClose={() => setSelectedId(null)}
+        onUpdate={updateReservation}
+      />
     </div>
   )
 }

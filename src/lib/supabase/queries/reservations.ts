@@ -14,6 +14,9 @@ const RESERVATION_SELECT = `
   guest_phone,
   guest_instagram,
   request_note,
+  admin_memo,
+  reject_reason,
+  approved_at,
   incentive_type,
   table:tables(id, type)
 `
@@ -84,4 +87,32 @@ export async function getUserReservations(
   const { data, error } = await query
   if (error) throw error
   return normalise(data ?? [])
+}
+
+export async function getReservationById(
+  supabase: SupabaseClient,
+  id: string,
+): Promise<ReservationListItem | null> {
+  const { data, error } = await supabase
+    .from('reservations')
+    .select(RESERVATION_SELECT)
+    .eq('id', id)
+    .single()
+  if (error) return null
+  return normalise([data])[0] ?? null
+}
+
+export async function getUserReservationById(
+  supabase: SupabaseClient,
+  id: string,
+  userId: string,
+): Promise<ReservationListItem | null> {
+  const { data, error } = await supabase
+    .from('reservations')
+    .select(RESERVATION_SELECT)
+    .eq('id', id)
+    .eq('user_id', userId)
+    .single()
+  if (error) return null
+  return normalise([data])[0] ?? null
 }
