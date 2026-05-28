@@ -35,7 +35,6 @@ export function useAdminReservations(filters: ReservationFilters = {}) {
     setLoading(false)
   }, [])
 
-  // Re-fetch when filters change
   useEffect(() => {
     setLoading(true)
     refetch()
@@ -47,7 +46,6 @@ export function useAdminReservations(filters: ReservationFilters = {}) {
     refetch,
   ])
 
-  // Realtime subscription — refetch on any reservations change
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
@@ -85,8 +83,6 @@ export function useMyReservations() {
     refetch()
   }, [refetch])
 
-  // Realtime subscription — refetch on UPDATE to own reservations
-  // RLS ensures only the user's rows trigger on the client
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase

@@ -72,6 +72,7 @@ export default function ReservationDetailPanel({ reservation: r, onClose, onUpda
   }
   const handleCheckin = () => act({ status: 'in_use' as ReservationStatus })
   const handleCheckout = () => act({ status: 'completed' as ReservationStatus })
+  const handleNoShow = () => act({ status: 'no_show' as ReservationStatus })
   const handleMemoSave = () => {
     act({ admin_memo: memo })
     setMemoEditing(false)
@@ -226,13 +227,22 @@ export default function ReservationDetailPanel({ reservation: r, onClose, onUpda
           )}
 
           {r.status === 'confirmed' && (
-            <button
-              onClick={handleCheckin}
-              disabled={busy}
-              className={`${btnBase} w-full bg-blue-600 hover:bg-blue-500 text-white`}
-            >
-              체크인
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={handleCheckin}
+                disabled={busy}
+                className={`${btnBase} flex-1 bg-blue-600 hover:bg-blue-500 text-white`}
+              >
+                체크인
+              </button>
+              <button
+                onClick={handleNoShow}
+                disabled={busy}
+                className={`${btnBase} flex-1 border border-orange-500/50 text-orange-400 hover:bg-orange-500/10`}
+              >
+                노쇼
+              </button>
+            </div>
           )}
 
           {r.status === 'in_use' && (
