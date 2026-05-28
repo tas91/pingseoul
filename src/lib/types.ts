@@ -13,11 +13,6 @@ export type TimeSlot = 'slot_00' | 'slot_02' | 'slot_04' | 'slot_06'
 
 export type DepartureIncentive = 'champagne_free' | 'discount_10' | 'discount_5' | 'none'
 
-export interface ReservationTable {
-  id: string
-  type: string
-}
-
 export interface ReservationListItem {
   id: string
   reservation_number: string
@@ -27,21 +22,19 @@ export interface ReservationListItem {
   visit_time: string
   people_count: number
   status: ReservationStatus
-  guest_name: string | null
-  guest_phone: string | null
-  guest_instagram: string | null
   request_note: string | null
   admin_memo: string | null
   reject_reason: string | null
-  approved_at: string | null
   incentive_type: DepartureIncentive
-  table: ReservationTable | null
+  approved_at: string | null
+  checked_in_at: string | null
+  checked_out_at: string | null
+  expires_at: string | null
+  guest_name: string | null
+  guest_phone: string | null
+  guest_email: string | null
+  table: { id: string; type: string } | null
 }
-
-export type ReservationAction =
-  | { action: 'approve' }
-  | { action: 'reject'; reject_reason: string }
-  | { action: 'memo'; admin_memo: string }
 
 export interface ReservationFilters {
   business_date?: string

@@ -1,101 +1,51 @@
-import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { getReservationById } from '@/lib/supabase/queries/reservations'
 import { NextResponse } from 'next/server'
-import type { ReservationAction } from '@/lib/types'
 
-async function getAdminProfile(userId: string) {
-  const supabase = createServerSupabaseClient()
-  const { data } = await supabase
-    .from('admin_profiles')
-    .select('role, is_active')
-    .eq('id', userId)
-    .single()
-  return data
-}
-
-export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } },
-) {
-  try {
-    const supabase = createServerSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const profile = await getAdminProfile(user.id)
-    if (!profile?.is_active) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-    const adminClient = createAdminClient()
-    const reservation = await getReservationById(adminClient, params.id)
-    if (!reservation) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-    return NextResponse.json({ reservation })
-  } catch (err) {
-    console.error('[GET /api/admin/reservations/[id]]', err)
-    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 })
-  }
+interface PatchBody {
+  status?: string
+  reject_reason?: string
+  admin_memo?: string
+  table_id?: string
 }
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: { id: string } }
 ) {
-  try {
-    const supabase = createServerSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const supabase = createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const profile = await getAdminProfile(user.id)
-    if (!profile?.is_active) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const { data: adminProfile } = await supabase
+    .from('admin_profiles')
+    .select('role')
+    .eq('id', user.id)
+    .eq('is_active', true)
+    .single()
 
-    const body: ReservationAction = await request.json()
+  if (!adminProfile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    // 업데이트 페이로드 결정
-    let updatePayload: Record<string, unknown>
-    if (body.action === 'approve') {
-      updatePayload = {
-        status: 'confirmed',
-        approved_at: new Date().toISOString(),
-      }
-    } else if (body.action === 'reject') {
-      if (!body.reject_reason?.trim()) {
-        return NextResponse.json({ error: '거절 사유를 입력해 주세요.' }, { status: 400 })
-      }
-      updatePayload = {
-        status: 'rejected',
-        reject_reason: body.reject_reason.trim(),
-      }
-    } else if (body.action === 'memo') {
-      updatePayload = { admin_memo: body.admin_memo }
-    } else {
-      return NextResponse.json({ error: '잘못된 action입니다.' }, { status: 400 })
-    }
+  const body: PatchBody = await request.json()
+  const updates: Record<string, unknown> = {}
 
-    const adminClient = createAdminClient()
-    const { data, error } = await adminClient
-      .from('reservations')
-      .update(updatePayload)
-      .eq('id', params.id)
-      .select(`
-        id, reservation_number, created_at, business_date, arrival_slot,
-        visit_time, people_count, status, guest_name, guest_phone,
-        guest_instagram, request_note, admin_memo, reject_reason,
-        approved_at, incentive_type, table:tables(id, type)
-      `)
-      .single()
+  if (body.status !== undefined) updates.status = body.status
+  if (body.reject_reason !== undefined) updates.reject_reason = body.reject_reason
+  if (body.admin_memo !== undefined) updates.admin_memo = body.admin_memo
+  if (body.table_id !== undefined) updates.table_id = body.table_id
 
-    if (error) throw error
+  if (body.status === 'confirmed') updates.approved_at = new Date().toISOString()
+  if (body.status === 'in_use') updates.checked_in_at = new Date().toISOString()
+  if (body.status === 'completed') updates.checked_out_at = new Date().toISOString()
 
-    // table 배열 정규화
-    const reservation = {
-      ...data,
-      table: Array.isArray(data.table) ? (data.table[0] ?? null) : data.table,
-    }
+  const { error } = await supabase
+    .from('reservations')
+    .update(updates)
+    .eq('id', params.id)
 
-    return NextResponse.json({ reservation })
-  } catch (err) {
-    console.error('[PATCH /api/admin/reservations/[id]]', err)
-    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 })
+  if (error) {
+    console.error('[admin/reservations PATCH]', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  return NextResponse.json({ ok: true })
 }

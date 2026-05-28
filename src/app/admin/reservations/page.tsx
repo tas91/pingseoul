@@ -4,46 +4,60 @@ import { useState } from 'react'
 import { useAdminReservations } from '@/hooks/useReservations'
 import ReservationFilterBar from '@/components/admin/reservations/ReservationFilterBar'
 import ReservationTable from '@/components/admin/reservations/ReservationTable'
-import ReservationDrawer from '@/components/admin/reservations/ReservationDrawer'
-import type { ReservationFilters } from '@/lib/types'
+import ReservationDetailPanel from '@/components/admin/reservations/ReservationDetailPanel'
+import type { ReservationFilters, ReservationListItem } from '@/lib/types'
 
 export default function ReservationsPage() {
-  const [filters, setFilters] = useState<ReservationFilters>({ status: 'all' })
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const { reservations, loading, error, updateReservation } = useAdminReservations(filters)
+  const [filters, setFilters] = useState<ReservationFilters>({})
+  const [selected, setSelected] = useState<ReservationListItem | null>(null)
+  const { reservations, loading, subscribed, refetch } = useAdminReservations(filters)
 
-  const selectedItem = reservations.find((r) => r.id === selectedId) ?? null
-
-  function handleFilterChange(next: Partial<ReservationFilters>) {
-    setFilters((prev) => ({ ...prev, ...next }))
+  const handleUpdated = () => {
+    refetch()
+    setSelected(null)
   }
 
   return (
-    <div>
+    <div className="max-w-6xl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-white">예약 현황</h1>
-        <span className="text-xs text-ping-gray">
-          총 {loading ? '—' : reservations.length}건
-        </span>
+        {!subscribed && (
+          <span className="text-xs text-amber-400 border border-amber-400/30 rounded-md px-2 py-1">
+            실시간 연결 끊김
+          </span>
+        )}
       </div>
 
-      <ReservationFilterBar filters={filters} onChange={handleFilterChange} />
+      <ReservationFilterBar
+        filters={filters}
+        subscribed={subscribed}
+        onFilterChange={setFilters}
+        onRefresh={refetch}
+      />
 
-      {error && (
-        <p className="text-sm text-ping-red mb-4">{error}</p>
+      {loading ? (
+        <p className="text-ping-gray text-sm">불러오는 중...</p>
+      ) : (
+        <ReservationTable
+          reservations={reservations}
+          selectedId={selected?.id ?? null}
+          onSelect={setSelected}
+        />
       )}
 
-      <ReservationTable
-        items={reservations}
-        loading={loading}
-        onRowClick={setSelectedId}
-      />
-
-      <ReservationDrawer
-        item={selectedItem}
-        onClose={() => setSelectedId(null)}
-        onUpdate={updateReservation}
-      />
+      {selected && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/40 z-40"
+            onClick={() => setSelected(null)}
+          />
+          <ReservationDetailPanel
+            reservation={selected}
+            onClose={() => setSelected(null)}
+            onUpdated={handleUpdated}
+          />
+        </>
+      )}
     </div>
   )
 }
