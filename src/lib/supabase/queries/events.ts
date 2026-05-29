@@ -13,6 +13,21 @@ type DbEvent = {
   poster_url: string
   event_date: string
   entry_fee: number | null
+  images: string[]
+}
+
+export type DbEventDetail = {
+  id: string
+  name: string
+  dj: string
+  dress_code: string
+  poster_url: string
+  event_date: string
+  start_time: string
+  end_time: string
+  entry_fee: number | null
+  description: string | null
+  images: string[]
 }
 
 function toDateStr(d: Date): string {
@@ -31,6 +46,7 @@ function dbEventToEvent(row: DbEvent): Event {
     dressCode: row.dress_code,
     entryFee: row.entry_fee ?? 0,
     poster: row.poster_url || DEFAULT_POSTER,
+    images: row.images ?? [],
     status: 'available',
     timeSlots: ALL_TIME_SLOTS,
   }
@@ -44,7 +60,7 @@ export async function getUpcomingEventsByWeek(supabase: SupabaseClient) {
 
   const { data, error } = await supabase
     .from('events')
-    .select('id, name, dj, dress_code, poster_url, event_date, entry_fee')
+    .select('id, name, dj, dress_code, poster_url, event_date, entry_fee, images')
     .gte('event_date', todayStr)
     .lte('event_date', in21DaysStr)
     .order('event_date', { ascending: true })
@@ -73,4 +89,18 @@ export async function getUpcomingEventsByWeek(supabase: SupabaseClient) {
   }
 
   return { thisWeek, nextWeek, weekAfterNext }
+}
+
+export async function getEventById(
+  supabase: SupabaseClient,
+  id: string
+): Promise<DbEventDetail | null> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('id, name, dj, dress_code, poster_url, event_date, start_time, end_time, entry_fee, description, images')
+    .eq('id', id)
+    .single()
+
+  if (error || !data) return null
+  return data as DbEventDetail
 }

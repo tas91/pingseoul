@@ -10,8 +10,25 @@ export interface Event {
   dressCode: string
   entryFee: number
   poster: string
+  images: string[]
   status: EventStatus
   timeSlots: string[]
+}
+
+export interface AdminEvent {
+  id: string
+  name: string
+  dj: string
+  dress_code: string
+  poster_url: string
+  event_date: string
+  start_time: string
+  end_time: string
+  entry_fee: number | null
+  description: string | null
+  notify_subscribers: boolean
+  images: string[]
+  created_at: string
 }
 
 export interface FaqItem {
