@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 
@@ -55,11 +54,9 @@ export default function MyPage() {
 
         <Link
           href="/mypage/reservations"
-          className="flex items-center justify-between mt-6 px-5 py-4 bg-white/5 border border-white/10
-                     rounded-xl hover:border-white/20 transition-colors"
+          className="mt-6 block w-full py-3 text-center border border-white/10 text-white/70 hover:text-white hover:border-white/30 rounded-lg text-sm transition-colors"
         >
-          <span className="text-sm text-white font-medium">예약 내역</span>
-          <ChevronRight size={16} className="text-ping-gray" />
+          내 예약 보기
         </Link>
 
         <button

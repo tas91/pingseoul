@@ -96,7 +96,7 @@ Critical 이슈가 1개 이상 있으면:
 --- PR DIFF ---
 $DIFF"
 
-  REVIEW=$(echo "$PROMPT" | "$CLAUDE_BIN" -p --allowedTools "" 2>/dev/null)
+  REVIEW=$(echo "$PROMPT" | env -u CLAUDECODE "$CLAUDE_BIN" -p --allowedTools "" 2>/dev/null)
 
   if [ -z "$REVIEW" ]; then
     echo "❌ 리뷰 생성 실패"

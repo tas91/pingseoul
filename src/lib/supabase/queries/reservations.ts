@@ -1,118 +1,121 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { ReservationFilters, ReservationListItem } from '@/lib/types'
+import type { ReservationListItem, ReservationFilters } from '@/lib/types'
 
-const RESERVATION_SELECT = `
-  id,
-  reservation_number,
-  created_at,
-  business_date,
-  arrival_slot,
-  visit_time,
-  people_count,
-  status,
-  guest_name,
-  guest_phone,
-  guest_instagram,
-  request_note,
-  admin_memo,
-  reject_reason,
-  approved_at,
-  incentive_type,
-  table:tables(id, type)
+const ADMIN_SELECT = `
+  id, reservation_number, created_at, business_date, arrival_slot, visit_time,
+  people_count, status, request_note, admin_memo, reject_reason, incentive_type,
+  approved_at, checked_in_at, checked_out_at, expires_at,
+  profiles!reservations_user_id_fkey(name, phone, email),
+  tables(id, type)
 `
 
-// Supabase FK join returns single object but TS infers array — normalise here
+const USER_SELECT = `
+  id, reservation_number, created_at, business_date, arrival_slot, visit_time,
+  people_count, status, request_note, reject_reason, incentive_type,
+  approved_at, checked_in_at, checked_out_at, expires_at,
+  tables(id, type)
+`
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function normalise(rows: any[]): ReservationListItem[] {
-  return rows.map((r) => ({
-    ...r,
-    table: Array.isArray(r.table) ? (r.table[0] ?? null) : r.table,
-  }))
+function mapAdminRow(row: any): ReservationListItem {
+  return {
+    id: row.id,
+    reservation_number: row.reservation_number,
+    created_at: row.created_at,
+    business_date: row.business_date,
+    arrival_slot: row.arrival_slot,
+    visit_time: row.visit_time,
+    people_count: row.people_count,
+    status: row.status,
+    request_note: row.request_note ?? null,
+    admin_memo: row.admin_memo ?? null,
+    reject_reason: row.reject_reason ?? null,
+    incentive_type: row.incentive_type,
+    approved_at: row.approved_at ?? null,
+    checked_in_at: row.checked_in_at ?? null,
+    checked_out_at: row.checked_out_at ?? null,
+    expires_at: row.expires_at ?? null,
+    guest_name: row.profiles?.name ?? null,
+    guest_phone: row.profiles?.phone ?? null,
+    guest_email: row.profiles?.email ?? null,
+    table: row.tables ? { id: row.tables.id, type: row.tables.type } : null,
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function applyFilters(query: any, filters: ReservationFilters): any {
-  if (filters.business_date) {
-    query = query.eq('business_date', filters.business_date)
+function mapUserRow(row: any): ReservationListItem {
+  return {
+    id: row.id,
+    reservation_number: row.reservation_number,
+    created_at: row.created_at,
+    business_date: row.business_date,
+    arrival_slot: row.arrival_slot,
+    visit_time: row.visit_time,
+    people_count: row.people_count,
+    status: row.status,
+    request_note: row.request_note ?? null,
+    admin_memo: null,
+    reject_reason: row.reject_reason ?? null,
+    incentive_type: row.incentive_type,
+    approved_at: row.approved_at ?? null,
+    checked_in_at: row.checked_in_at ?? null,
+    checked_out_at: row.checked_out_at ?? null,
+    expires_at: row.expires_at ?? null,
+    guest_name: null,
+    guest_phone: null,
+    guest_email: null,
+    table: row.tables ? { id: row.tables.id, type: row.tables.type } : null,
   }
-  if (filters.status && filters.status !== 'all') {
-    query = query.eq('status', filters.status)
-  }
-  if (filters.table_id) {
-    query = query.eq('table_id', filters.table_id)
-  }
-  return query
 }
 
 export async function getAdminReservations(
   supabase: SupabaseClient,
-  filters: ReservationFilters = {},
+  filters: ReservationFilters = {}
 ): Promise<ReservationListItem[]> {
   let query = supabase
     .from('reservations')
-    .select(RESERVATION_SELECT)
+    .select(ADMIN_SELECT)
     .order('created_at', { ascending: false })
 
-  query = applyFilters(query, filters)
-
-  if (filters.keyword) {
-    const kw = `%${filters.keyword}%`
-    query = query.or(
-      `reservation_number.ilike.${kw},guest_name.ilike.${kw},guest_phone.ilike.${kw}`,
-    )
-  }
+  if (filters.business_date) query = query.eq('business_date', filters.business_date)
+  if (filters.status && filters.status !== 'all') query = query.eq('status', filters.status)
+  if (filters.table_id) query = query.eq('table_id', filters.table_id)
+  if (filters.keyword) query = query.ilike('reservation_number', `%${filters.keyword}%`)
 
   const { data, error } = await query
   if (error) throw error
-  return normalise(data ?? [])
+
+  return (data ?? []).map(mapAdminRow)
 }
 
 export async function getUserReservations(
   supabase: SupabaseClient,
-  userId: string,
-  filters: ReservationFilters = {},
+  userId: string
 ): Promise<ReservationListItem[]> {
-  let query = supabase
+  const { data, error } = await supabase
     .from('reservations')
-    .select(RESERVATION_SELECT)
+    .select(USER_SELECT)
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
-  query = applyFilters(query, filters)
-
-  if (filters.keyword) {
-    query = query.ilike('reservation_number', `%${filters.keyword}%`)
-  }
-
-  const { data, error } = await query
   if (error) throw error
-  return normalise(data ?? [])
-}
 
-export async function getReservationById(
-  supabase: SupabaseClient,
-  id: string,
-): Promise<ReservationListItem | null> {
-  const { data, error } = await supabase
-    .from('reservations')
-    .select(RESERVATION_SELECT)
-    .eq('id', id)
-    .single()
-  if (error) return null
-  return normalise([data])[0] ?? null
+  return (data ?? []).map(mapUserRow)
 }
 
 export async function getUserReservationById(
   supabase: SupabaseClient,
   id: string,
-  userId: string,
+  userId: string
 ): Promise<ReservationListItem | null> {
   const { data, error } = await supabase
     .from('reservations')
-    .select(RESERVATION_SELECT)
+    .select(USER_SELECT)
     .eq('id', id)
     .eq('user_id', userId)
     .single()
+
   if (error) return null
-  return normalise([data])[0] ?? null
+
+  return mapUserRow(data)
 }
