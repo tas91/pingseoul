@@ -22,11 +22,16 @@ const EMPTY_FORM = {
   newImagePreviews: [] as string[],
 }
 
-async function uploadToStorage(file: File, supabase: ReturnType<typeof createClient>): Promise<string> {
+async function uploadToStorage(
+  file: File,
+  supabase: ReturnType<typeof createClient>,
+  uploadedKeys: string[],
+): Promise<string> {
   const ext = file.name.split('.').pop()
   const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
   const { error } = await supabase.storage.from('event-posters').upload(fileName, file)
   if (error) throw new Error(`업로드 실패: ${error.message}`)
+  uploadedKeys.push(fileName)
   const { data } = supabase.storage.from('event-posters').getPublicUrl(fileName)
   return data.publicUrl
 }
@@ -46,12 +51,16 @@ export default function EventsPage() {
 
   const fetchEvents = async () => {
     setLoading(true)
-    const res = await fetch('/api/admin/events')
-    if (res.ok) {
+    try {
+      const res = await fetch('/api/admin/events')
+      if (!res.ok) throw new Error('이벤트 목록을 불러오지 못했습니다.')
       const data = await res.json()
       setEvents(data.events)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '불러오기 실패')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   useEffect(() => {
@@ -96,7 +105,10 @@ export default function EventsPage() {
   const handlePosterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    setForm((p) => ({ ...p, posterFile: file, posterPreview: URL.createObjectURL(file) }))
+    setForm((p) => {
+      if (p.posterPreview.startsWith('blob:')) URL.revokeObjectURL(p.posterPreview)
+      return { ...p, posterFile: file, posterPreview: URL.createObjectURL(file) }
+    })
   }
 
   const handleImagesAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,11 +128,14 @@ export default function EventsPage() {
   }
 
   const removeNewImage = (index: number) => {
-    setForm((p) => ({
-      ...p,
-      newImageFiles: p.newImageFiles.filter((_, i) => i !== index),
-      newImagePreviews: p.newImagePreviews.filter((_, i) => i !== index),
-    }))
+    setForm((p) => {
+      URL.revokeObjectURL(p.newImagePreviews[index])
+      return {
+        ...p,
+        newImageFiles: p.newImageFiles.filter((_, i) => i !== index),
+        newImagePreviews: p.newImagePreviews.filter((_, i) => i !== index),
+      }
+    })
   }
 
   const handleSave = async () => {
@@ -133,16 +148,17 @@ export default function EventsPage() {
     setSaving(true)
     setError(null)
 
+    const uploadedKeys: string[] = []
     try {
       const supabase = createClient()
       let posterUrl = editingEvent?.poster_url ?? ''
 
       if (form.posterFile) {
-        posterUrl = await uploadToStorage(form.posterFile, supabase)
+        posterUrl = await uploadToStorage(form.posterFile, supabase, uploadedKeys)
       }
 
       const newImageUrls = await Promise.all(
-        form.newImageFiles.map((file) => uploadToStorage(file, supabase))
+        form.newImageFiles.map((file) => uploadToStorage(file, supabase, uploadedKeys))
       )
       const images = [...form.existingImages, ...newImageUrls]
 
@@ -175,6 +191,10 @@ export default function EventsPage() {
       closePanel()
       fetchEvents()
     } catch (err) {
+      if (uploadedKeys.length > 0) {
+        const supabase = createClient()
+        await supabase.storage.from('event-posters').remove(uploadedKeys)
+      }
       setError(err instanceof Error ? err.message : '저장 중 오류가 발생했습니다.')
     } finally {
       setSaving(false)

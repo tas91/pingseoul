@@ -87,7 +87,7 @@ function EventCard({ event }: { event: Event }) {
         <div>
           <span className="text-xs text-[#A0A0A0]">입장료</span>
           <p className="text-base font-black text-white tabular-nums">
-            {event.entryFee.toLocaleString()}원
+            {event.entryFee ? `${event.entryFee.toLocaleString()}원` : '무료'}
           </p>
         </div>
         {event.status !== 'soldout' ? (

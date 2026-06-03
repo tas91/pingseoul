@@ -1,19 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getActiveAdmin } from '@/lib/supabase/auth-utils'
 import { NextResponse } from 'next/server'
-
-async function getActiveAdmin() {
-  const supabase = createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const { data: profile } = await supabase
-    .from('admin_profiles')
-    .select('id')
-    .eq('id', user.id)
-    .eq('is_active', true)
-    .single()
-  return profile ? user : null
-}
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const user = await getActiveAdmin()

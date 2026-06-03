@@ -20,11 +20,13 @@ export default async function EventsPage() {
   const supabase = createServerSupabaseClient()
   const today = new Date().toISOString().split('T')[0]
 
-  const { data: events } = await supabase
+  const { data: events, error } = await supabase
     .from('events')
     .select('id, name, dj, dress_code, poster_url, event_date, start_time, end_time, entry_fee')
     .gte('event_date', today)
     .order('event_date', { ascending: true })
+
+  if (error) console.error('events fetch error:', error.message)
 
   return (
     <div className="min-h-screen bg-black text-white">
