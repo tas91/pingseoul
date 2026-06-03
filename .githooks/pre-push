@@ -1,0 +1,98 @@
+#!/bin/bash
+
+if ! command -v gh &>/dev/null; then
+  exit 0
+fi
+
+BRANCH=$(git branch --show-current)
+
+PR_NUMBER=$(gh pr view "$BRANCH" --json number -q '.number' 2>/dev/null)
+if [ -z "$PR_NUMBER" ]; then
+  exit 0
+fi
+
+REPO=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
+
+# PR base 브랜치 기준으로 로컬 diff 수집 (push 전이므로 로컬에서 계산)
+BASE=$(gh pr view "$PR_NUMBER" --json baseRefName -q '.baseRefName' 2>/dev/null)
+DIFF=$(git diff "origin/$BASE"...HEAD 2>/dev/null | head -n 300)
+
+if [ -z "$DIFF" ]; then
+  exit 0
+fi
+
+# 리뷰를 백그라운드 실행 → push가 지연되지 않음
+(
+  echo "🤖 AI 코드 리뷰 시작 (PR #$PR_NUMBER)..."
+
+  PENDING_BODY="## 🤖 AI Code Review
+
+> ⏳ **리뷰 진행 중입니다...** 잠시만 기다려주세요."
+
+  COMMENT_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
+    --jq '.[] | select(.body | test("🤖 AI Code Review")) | .id' 2>/dev/null | head -1)
+
+  if [ -n "$COMMENT_ID" ]; then
+    gh api "repos/$REPO/issues/comments/$COMMENT_ID" -X PATCH -f body="$PENDING_BODY" > /dev/null
+  else
+    gh pr comment "$PR_NUMBER" --body "$PENDING_BODY" > /dev/null
+    COMMENT_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
+      --jq '.[-1].id' 2>/dev/null)
+  fi
+
+  PROMPT="아래 PR diff를 한국어로 코드 리뷰해줘.
+프로젝트 스택: Next.js 14 (App Router), TypeScript (strict), Supabase
+
+다음 포맷으로 작성해줘:
+
+## 🤖 AI Code Review
+
+> **심각도 요약**: 🔴 Critical: N | 🟡 Important: N | 💡 Suggestion: N
+
+## 🔴 Critical Issues
+### [CRITICAL] 제목
+- **파일**: \`경로/파일.ts\` (line X)
+- **문제**: 설명
+- **수정 방법**: 구체적 해결책
+
+## 🟡 Important Issues
+(동일 포맷)
+
+## 💡 Suggestions
+(동일 포맷)
+
+## ✅ 잘된 점
+- 긍정적인 부분 1~3개
+
+---
+
+## 🏁 승인 여부
+
+Critical 이슈가 없으면 아래처럼 표시해줘:
+
+> ✅ **Approve 가능** — 머지해도 됩니다.
+
+Critical 이슈가 1개 이상 있으면:
+
+> ❌ **Approve 불가** — Critical 이슈 해결 후 머지하세요.
+
+이슈가 없는 섹션은 \"없음\"으로 표시해줘.
+보안 취약점(특히 Supabase RLS, API route 인증), TypeScript 타입 안전성, Next.js Server/Client 경계를 중점적으로 확인해줘.
+텍스트만 출력하고 파일 시스템이나 외부 도구는 사용하지 마.
+
+--- PR DIFF ---
+$DIFF"
+
+  REVIEW=$(echo "$PROMPT" | claude -p --allowedTools "" 2>/dev/null)
+
+  if [ -z "$REVIEW" ]; then
+    echo "❌ 리뷰 생성 실패"
+    exit 0
+  fi
+
+  gh api "repos/$REPO/issues/comments/$COMMENT_ID" -X PATCH -f body="$REVIEW" > /dev/null
+  echo "✅ PR #$PR_NUMBER 리뷰 코멘트 업데이트 완료"
+) &
+disown
+
+exit 0
