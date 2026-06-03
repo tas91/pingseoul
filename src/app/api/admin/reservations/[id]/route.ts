@@ -40,6 +40,10 @@ export async function PATCH(
     return NextResponse.json({ error: '유효하지 않은 status입니다.' }, { status: 400 })
   }
 
+  if (body.status === 'rejected' && !body.reject_reason?.trim()) {
+    return NextResponse.json({ error: '거절 사유를 입력해 주세요.' }, { status: 400 })
+  }
+
   const updates: Record<string, unknown> = {}
 
   if (body.status !== undefined) updates.status = body.status
@@ -63,7 +67,7 @@ export async function PATCH(
 
   if (error) {
     console.error('[admin/reservations PATCH]', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true })
