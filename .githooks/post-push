@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo "🔍 post-push hook 실행 중... (브랜치: $(git branch --show-current))"
+
 if ! command -v gh &>/dev/null; then
   echo "⚠️  gh CLI가 설치되지 않아 AI 리뷰를 건너뜁니다."
   exit 0
@@ -13,6 +15,27 @@ if [ -z "$PR_NUMBER" ]; then
 fi
 
 echo "🤖 AI 코드 리뷰 시작 (PR #$PR_NUMBER)..."
+
+REPO=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
+
+# 기존 AI 리뷰 코멘트 ID 조회
+COMMENT_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
+  --jq '.[] | select(.body | test("🤖 AI Code Review")) | .id' 2>/dev/null | head -1)
+
+PENDING_BODY="## 🤖 AI Code Review
+
+> ⏳ **리뷰 진행 중입니다...** 잠시만 기다려주세요."
+
+if [ -n "$COMMENT_ID" ]; then
+  gh api "repos/$REPO/issues/comments/$COMMENT_ID" -X PATCH -f body="$PENDING_BODY" > /dev/null
+else
+  COMMENT_ID=$(gh pr comment "$PR_NUMBER" --body "$PENDING_BODY" 2>/dev/null | \
+    gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
+    --jq '.[-1] | select(.body | test("리뷰 진행 중")) | .id' 2>/dev/null)
+  # 새로 생성된 코멘트 ID 재조회
+  COMMENT_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
+    --jq '.[-1] | .id' 2>/dev/null)
+fi
 
 TMPFILE=$(mktemp /tmp/pr-review-XXXXXX.txt)
 trap 'rm -f "$TMPFILE"' EXIT
@@ -76,16 +99,5 @@ if [ -z "$REVIEW" ]; then
   exit 0
 fi
 
-REPO=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
-
-# 기존 AI 리뷰 코멘트가 있으면 덮어쓰고, 없으면 새로 생성
-COMMENT_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
-  --jq '.[] | select(.body | test("🤖 AI Code Review")) | .id' 2>/dev/null | head -1)
-
-if [ -n "$COMMENT_ID" ]; then
-  gh api "repos/$REPO/issues/comments/$COMMENT_ID" -X PATCH -f body="$REVIEW" > /dev/null
-  echo "✅ PR #$PR_NUMBER 리뷰 코멘트 업데이트 완료"
-else
-  gh pr comment "$PR_NUMBER" --body "$REVIEW"
-  echo "✅ PR #$PR_NUMBER 에 리뷰 코멘트 게시 완료"
-fi
+gh api "repos/$REPO/issues/comments/$COMMENT_ID" -X PATCH -f body="$REVIEW" > /dev/null
+echo "✅ PR #$PR_NUMBER 리뷰 코멘트 업데이트 완료"
