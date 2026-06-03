@@ -9,9 +9,10 @@ const HEADERS = [
 interface Props {
   items: ReservationListItem[]
   loading: boolean
+  onRowClick?: (id: string) => void
 }
 
-export default function ReservationTable({ items, loading }: Props) {
+export default function ReservationTable({ items, loading, onRowClick }: Props) {
   return (
     <div className="bg-white/5 border border-white/10 rounded-xl overflow-x-auto">
       <table className="w-full text-sm min-w-[900px]">
@@ -41,7 +42,13 @@ export default function ReservationTable({ items, loading }: Props) {
               </td>
             </tr>
           ) : (
-            items.map((item) => <ReservationRow key={item.id} item={item} />)
+            items.map((item) => (
+              <ReservationRow
+                key={item.id}
+                item={item}
+                onClick={onRowClick ? () => onRowClick(item.id) : undefined}
+              />
+            ))
           )}
         </tbody>
       </table>

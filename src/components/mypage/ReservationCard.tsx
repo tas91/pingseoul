@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { ReservationListItem } from '@/lib/types'
 import ReservationStatusBadge from '@/components/admin/reservations/ReservationStatusBadge'
 
@@ -40,6 +41,22 @@ export default function ReservationCard({ item }: { item: ReservationListItem })
       {item.request_note && (
         <p className="text-xs text-ping-gray border-t border-white/5 pt-3">{item.request_note}</p>
       )}
+
+      {item.status === 'rejected' && item.reject_reason && (
+        <div className="border-t border-white/5 pt-3">
+          <p className="text-xs text-ping-gray mb-0.5">거절 사유</p>
+          <p className="text-sm text-ping-red">{item.reject_reason}</p>
+        </div>
+      )}
+
+      <div className="border-t border-white/5 pt-3">
+        <Link
+          href={`/mypage/reservations/${item.id}`}
+          className="text-xs text-ping-gray hover:text-white transition-colors"
+        >
+          상세보기 →
+        </Link>
+      </div>
     </div>
   )
 }

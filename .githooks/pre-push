@@ -4,6 +4,19 @@ if ! command -v gh &>/dev/null; then
   exit 0
 fi
 
+# fnm 등 버전 매니저가 만든 임시 경로 대신 안정적인 경로 우선 사용
+CLAUDE_BIN=""
+for candidate in "$HOME/.local/bin/claude" "/usr/local/bin/claude" "$(command -v claude 2>/dev/null)"; do
+  if [ -x "$candidate" ]; then
+    CLAUDE_BIN="$candidate"
+    break
+  fi
+done
+
+if [ -z "$CLAUDE_BIN" ]; then
+  exit 0
+fi
+
 BRANCH=$(git branch --show-current)
 
 PR_NUMBER=$(gh pr view "$BRANCH" --json number -q '.number' 2>/dev/null)
@@ -83,10 +96,14 @@ Critical 이슈가 1개 이상 있으면:
 --- PR DIFF ---
 $DIFF"
 
-  REVIEW=$(echo "$PROMPT" | claude -p --allowedTools "" 2>/dev/null)
+  REVIEW=$(echo "$PROMPT" | "$CLAUDE_BIN" -p --allowedTools "" 2>/dev/null)
 
   if [ -z "$REVIEW" ]; then
     echo "❌ 리뷰 생성 실패"
+    gh api "repos/$REPO/issues/comments/$COMMENT_ID" -X PATCH \
+      -f body="## 🤖 AI Code Review
+
+> ❌ **리뷰 생성에 실패했습니다.** 수동으로 리뷰를 진행해주세요." > /dev/null
     exit 0
   fi
 

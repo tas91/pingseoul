@@ -39,7 +39,16 @@ export function useAdminReservations(filters: ReservationFilters) {
 
   useEffect(() => { fetch_() }, [fetch_])
 
-  return { reservations, loading, error, refetch: fetch_ }
+  const updateReservation = useCallback(
+    (id: string, patch: Partial<ReservationListItem>) => {
+      setReservations((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, ...patch } : r))
+      )
+    },
+    []
+  )
+
+  return { reservations, loading, error, refetch: fetch_, updateReservation }
 }
 
 export function useMyReservations(filters: ReservationFilters) {
