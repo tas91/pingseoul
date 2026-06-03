@@ -33,7 +33,7 @@ export async function GET(
     return NextResponse.json({ reservation })
   } catch (err) {
     console.error('[GET /api/admin/reservations/[id]]', err)
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 })
   }
 }
 
@@ -96,6 +96,6 @@ export async function PATCH(
     return NextResponse.json({ reservation })
   } catch (err) {
     console.error('[PATCH /api/admin/reservations/[id]]', err)
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 })
   }
 }
