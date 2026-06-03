@@ -102,3 +102,20 @@ export async function getUserReservations(
 
   return (data ?? []).map(mapUserRow)
 }
+
+export async function getUserReservationById(
+  supabase: SupabaseClient,
+  id: string,
+  userId: string
+): Promise<ReservationListItem | null> {
+  const { data, error } = await supabase
+    .from('reservations')
+    .select(USER_SELECT)
+    .eq('id', id)
+    .eq('user_id', userId)
+    .single()
+
+  if (error) return null
+
+  return mapUserRow(data)
+}

@@ -1,5 +1,9 @@
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+
+const ALLOWED_STATUSES = ['confirmed', 'rejected', 'in_use', 'completed', 'pending', 'cancelled', 'no_show'] as const
+type AllowedStatus = typeof ALLOWED_STATUSES[number]
 
 interface PatchBody {
   status?: string
@@ -25,7 +29,17 @@ export async function PATCH(
 
   if (!adminProfile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const body: PatchBody = await request.json()
+  let body: PatchBody
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  if (body.status !== undefined && !ALLOWED_STATUSES.includes(body.status as AllowedStatus)) {
+    return NextResponse.json({ error: '유효하지 않은 status입니다.' }, { status: 400 })
+  }
+
   const updates: Record<string, unknown> = {}
 
   if (body.status !== undefined) updates.status = body.status
@@ -37,7 +51,12 @@ export async function PATCH(
   if (body.status === 'in_use') updates.checked_in_at = new Date().toISOString()
   if (body.status === 'completed') updates.checked_out_at = new Date().toISOString()
 
-  const { error } = await supabase
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: '변경할 필드가 없습니다.' }, { status: 400 })
+  }
+
+  const adminClient = createAdminClient()
+  const { error } = await adminClient
     .from('reservations')
     .update(updates)
     .eq('id', params.id)

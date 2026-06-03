@@ -5,16 +5,18 @@ import { useAdminReservations } from '@/hooks/useReservations'
 import ReservationFilterBar from '@/components/admin/reservations/ReservationFilterBar'
 import ReservationTable from '@/components/admin/reservations/ReservationTable'
 import ReservationDetailPanel from '@/components/admin/reservations/ReservationDetailPanel'
-import type { ReservationFilters, ReservationListItem } from '@/lib/types'
+import type { ReservationFilters } from '@/lib/types'
 
 export default function ReservationsPage() {
   const [filters, setFilters] = useState<ReservationFilters>({})
-  const [selected, setSelected] = useState<ReservationListItem | null>(null)
-  const { reservations, loading, subscribed, refetch } = useAdminReservations(filters)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const { reservations, loading, error, subscribed, refetch } = useAdminReservations(filters)
+
+  const selectedItem = reservations.find((r) => r.id === selectedId) ?? null
 
   const handleUpdated = () => {
     refetch()
-    setSelected(null)
+    setSelectedId(null)
   }
 
   return (
@@ -35,25 +37,29 @@ export default function ReservationsPage() {
         onRefresh={refetch}
       />
 
+      {error && (
+        <p className="text-sm text-ping-red mb-4">{error}</p>
+      )}
+
       {loading ? (
         <p className="text-ping-gray text-sm">불러오는 중...</p>
       ) : (
         <ReservationTable
           reservations={reservations}
-          selectedId={selected?.id ?? null}
-          onSelect={setSelected}
+          selectedId={selectedId}
+          onSelect={(r) => setSelectedId(r.id)}
         />
       )}
 
-      {selected && (
+      {selectedItem && (
         <>
           <div
             className="fixed inset-0 bg-black/40 z-40"
-            onClick={() => setSelected(null)}
+            onClick={() => setSelectedId(null)}
           />
           <ReservationDetailPanel
-            reservation={selected}
-            onClose={() => setSelected(null)}
+            reservation={selectedItem}
+            onClose={() => setSelectedId(null)}
             onUpdated={handleUpdated}
           />
         </>

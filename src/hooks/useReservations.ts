@@ -17,6 +17,7 @@ function buildQuery(filters: ReservationFilters): string {
 export function useAdminReservations(filters: ReservationFilters = {}) {
   const [reservations, setReservations] = useState<ReservationListItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [subscribed, setSubscribed] = useState(false)
   const filtersRef = useRef(filters)
   filtersRef.current = filters
@@ -27,6 +28,9 @@ export function useAdminReservations(filters: ReservationFilters = {}) {
     if (res.ok) {
       const data = await res.json()
       setReservations(data.reservations)
+      setError(null)
+    } else {
+      setError('예약 목록을 불러오지 못했습니다.')
     }
     setLoading(false)
   }, [])
@@ -60,7 +64,7 @@ export function useAdminReservations(filters: ReservationFilters = {}) {
     return () => { supabase.removeChannel(channel) }
   }, [refetch])
 
-  return { reservations, loading, subscribed, refetch }
+  return { reservations, loading, error, subscribed, refetch }
 }
 
 export function useMyReservations() {

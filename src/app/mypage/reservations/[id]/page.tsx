@@ -128,7 +128,7 @@ export default function ReservationDetailPage() {
           <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col gap-2.5">
             <Row label="예약자명" value={item.guest_name ?? '—'} />
             <Row label="연락처" value={item.guest_phone ?? '—'} />
-            <Row label="인스타그램" value={item.guest_instagram ?? '—'} />
+            <Row label="이메일" value={item.guest_email ?? '—'} />
             {item.request_note && (
               <Row label="기타사항" value={item.request_note} />
             )}
