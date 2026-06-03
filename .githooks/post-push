@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if ! command -v gh &>/dev/null; then
+  echo "⚠️  gh CLI가 설치되지 않아 AI 리뷰를 건너뜁니다."
+  exit 0
+fi
+
 BRANCH=$(git branch --show-current)
 
 PR_NUMBER=$(gh pr view "$BRANCH" --json number -q '.number' 2>/dev/null)
@@ -10,7 +15,7 @@ fi
 echo "🤖 AI 코드 리뷰 시작 (PR #$PR_NUMBER)..."
 
 TMPFILE=$(mktemp /tmp/pr-review-XXXXXX.txt)
-trap "rm -f $TMPFILE" EXIT
+trap 'rm -f "$TMPFILE"' EXIT
 
 gh pr diff "$PR_NUMBER" > "$TMPFILE" 2>/dev/null
 if [ ! -s "$TMPFILE" ]; then
@@ -18,8 +23,8 @@ if [ ! -s "$TMPFILE" ]; then
   exit 0
 fi
 
-# 너무 큰 diff는 12000자로 제한
-DIFF=$(head -c 12000 "$TMPFILE")
+# 줄 단위로 자름 (바이트 절단으로 인한 UTF-8 깨짐 방지)
+DIFF=$(head -n 300 "$TMPFILE")
 
 PROMPT="아래 PR diff를 한국어로 코드 리뷰해줘.
 프로젝트 스택: Next.js 14 (App Router), TypeScript (strict), Supabase
@@ -47,11 +52,12 @@ PROMPT="아래 PR diff를 한국어로 코드 리뷰해줘.
 
 이슈가 없는 섹션은 \"없음\"으로 표시해줘.
 보안 취약점(특히 Supabase RLS, API route 인증), TypeScript 타입 안전성, Next.js Server/Client 경계를 중점적으로 확인해줘.
+텍스트만 출력하고 파일 시스템이나 외부 도구는 사용하지 마.
 
 --- PR DIFF ---
 $DIFF"
 
-REVIEW=$(echo "$PROMPT" | claude -p --dangerously-skip-permissions 2>/dev/null)
+REVIEW=$(echo "$PROMPT" | claude -p --allowedTools "" 2>/dev/null)
 
 if [ -z "$REVIEW" ]; then
   echo "❌ 리뷰 생성 실패"
