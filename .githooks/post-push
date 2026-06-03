@@ -50,6 +50,18 @@ PROMPT="아래 PR diff를 한국어로 코드 리뷰해줘.
 ## ✅ 잘된 점
 - 긍정적인 부분 1~3개
 
+---
+
+## 🏁 승인 여부
+
+Critical 이슈가 없으면 아래처럼 표시해줘:
+
+> ✅ **Approve 가능** — 머지해도 됩니다.
+
+Critical 이슈가 1개 이상 있으면:
+
+> ❌ **Approve 불가** — Critical 이슈 해결 후 머지하세요.
+
 이슈가 없는 섹션은 \"없음\"으로 표시해줘.
 보안 취약점(특히 Supabase RLS, API route 인증), TypeScript 타입 안전성, Next.js Server/Client 경계를 중점적으로 확인해줘.
 텍스트만 출력하고 파일 시스템이나 외부 도구는 사용하지 마.
@@ -64,5 +76,16 @@ if [ -z "$REVIEW" ]; then
   exit 0
 fi
 
-gh pr comment "$PR_NUMBER" --body "$REVIEW"
-echo "✅ PR #$PR_NUMBER 에 리뷰 코멘트 게시 완료"
+REPO=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
+
+# 기존 AI 리뷰 코멘트가 있으면 덮어쓰고, 없으면 새로 생성
+COMMENT_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
+  --jq '.[] | select(.body | test("🤖 AI Code Review")) | .id' 2>/dev/null | head -1)
+
+if [ -n "$COMMENT_ID" ]; then
+  gh api "repos/$REPO/issues/comments/$COMMENT_ID" -X PATCH -f body="$REVIEW" > /dev/null
+  echo "✅ PR #$PR_NUMBER 리뷰 코멘트 업데이트 완료"
+else
+  gh pr comment "$PR_NUMBER" --body "$REVIEW"
+  echo "✅ PR #$PR_NUMBER 에 리뷰 코멘트 게시 완료"
+fi
