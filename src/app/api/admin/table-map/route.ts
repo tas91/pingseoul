@@ -2,6 +2,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 type DisplayStatus = 'available' | 'pending' | 'confirmed' | 'in_use' | 'blocked'
 
 const STATUS_PRIORITY: Record<string, number> = { in_use: 3, confirmed: 2, pending: 1 }
