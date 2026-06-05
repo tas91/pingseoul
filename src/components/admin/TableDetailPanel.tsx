@@ -100,6 +100,14 @@ function AssignedCard({ r, onUpdated }: { r: ReservationListItem; onUpdated: () 
           )}
         </div>
       )}
+      {/* 배치 취소 */}
+      <button
+        onClick={() => act({ table_id: null })}
+        disabled={busy}
+        className="w-full py-1 rounded text-[10px] text-white/30 hover:text-ping-red hover:bg-ping-red/10 transition-colors disabled:opacity-50 border border-transparent hover:border-ping-red/20"
+      >
+        배치 취소
+      </button>
     </div>
   )
 }
@@ -170,14 +178,15 @@ export default function TableDetailPanel({ table, selectedTableIds, date, onClos
     setLoadingAssigned(false)
   }, [table.id, date])
 
-  // 대기중 예약 전체 fetch (해당 날짜 기준, 슬롯 무관)
+  // 배치 필요 예약 fetch — pending/confirmed/in_use 전체 (table_id 무관)
   const fetchPending = useCallback(async () => {
     setLoadingPending(true)
-    const params = new URLSearchParams({ business_date: date, status: 'pending' })
+    const params = new URLSearchParams({ business_date: date })
     const res = await fetch(`/api/admin/reservations?${params}`)
     if (res.ok) {
       const json = await res.json()
-      setPending(json.reservations ?? [])
+      const ACTIVE = ['pending', 'confirmed', 'in_use']
+      setPending((json.reservations ?? []).filter((r: ReservationListItem) => ACTIVE.includes(r.status)))
     }
     setLoadingPending(false)
   }, [date])
@@ -241,7 +250,7 @@ export default function TableDetailPanel({ table, selectedTableIds, date, onClos
 
       {/* Tabs */}
       <div className="flex border-b border-white/10">
-        {([['assigned', '배치된 예약'], ['pending', '대기중 배치']] as [TabKey, string][]).map(([key, label]) => (
+        {([['assigned', '배치된 예약'], ['pending', '테이블 배치']] as [TabKey, string][]).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
