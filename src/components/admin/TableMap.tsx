@@ -25,74 +25,106 @@ interface TableMapProps {
   onTableClick?: (table: TableWithStatus) => void
 }
 
-// ping_seat.png 기반 좌표 계산 상수
-// 이미지 원본: ~390×820px / 표시: 380px 너비로 스케일
-const SCALE = 380 / 390          // ≈ 0.974
-const BG_CROP_Y = 127            // 로고 영역 크롭 (px, 스케일 적용 후)
-
-// 이미지 내 테이블 영역 경계 (원본 px 추정)
-const IMG_FP_X_MIN = 68          // 이미지 내 테이블 좌측 끝
-const IMG_FP_X_MAX = 315         // 이미지 내 테이블 우측 끝
-const IMG_FP_Y_MIN = 154         // 이미지 내 테이블 상단
-const IMG_FP_Y_MAX = 610         // 이미지 내 테이블 하단
-
-// DB 좌표 범위
-const DB_X_MIN = 90, DB_X_MAX = 460
-const DB_Y_MIN = 90, DB_Y_MAX = 620
-
-function toScreen(dbX: number, dbY: number) {
-  const sx = (IMG_FP_X_MIN + (dbX - DB_X_MIN) / (DB_X_MAX - DB_X_MIN) * (IMG_FP_X_MAX - IMG_FP_X_MIN)) * SCALE
-  const sy = (IMG_FP_Y_MIN + (dbY - DB_Y_MIN) / (DB_Y_MAX - DB_Y_MIN) * (IMG_FP_Y_MAX - IMG_FP_Y_MIN)) * SCALE - BG_CROP_Y
-  return { x: sx, y: sy }
+// 420×720 캔버스 기준 하드코딩 레이아웃 (ping_seat 도면 기반)
+const TABLE_LAYOUT: Record<string, { x: number; y: number }> = {
+  '7':  { x: 52,  y: 36  },
+  '6':  { x: 112, y: 36  },
+  '5':  { x: 172, y: 36  },
+  '4':  { x: 232, y: 36  },
+  '3':  { x: 292, y: 36  },
+  '2':  { x: 378, y: 92  },
+  '1':  { x: 378, y: 162 },
+  '8':  { x: 52,  y: 110 },
+  '9':  { x: 52,  y: 184 },
+  '10': { x: 52,  y: 265 },
+  '11': { x: 52,  y: 345 },
+  '12': { x: 52,  y: 420 },
+  '13': { x: 52,  y: 495 },
+  '14': { x: 52,  y: 570 },
+  '15': { x: 52,  y: 648 },   // T14 아래 행
+  'S2': { x: 130, y: 648 },   // T15 와 같은 행
+  'S1': { x: 205, y: 648 },   // T15 와 같은 행
 }
 
 const TABLE_SIZE: Record<string, { w: number; h: number }> = {
-  VIP:      { w: 44, h: 44 },
-  Standard: { w: 36, h: 36 },
-  Standing: { w: 32, h: 24 },
+  VIP:      { w: 56, h: 50 },
+  Standard: { w: 50, h: 44 },
+  Standing: { w: 44, h: 38 },
 }
 
 const STATUS_STYLE: Record<DisplayStatus, string> = {
-  available: 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300',
-  pending:   'bg-amber-500/20 border-amber-500/60 text-amber-300',
-  confirmed: 'bg-[#E63027]/70 border-[#E63027] text-white',
-  in_use:    'bg-violet-600/70 border-violet-400 text-white',
-  blocked:   'bg-black/40 border-white/10 text-white/20',
+  available: 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300',
+  pending:   'bg-amber-500/15 border-amber-500/50 text-amber-300',
+  confirmed: 'bg-[#E63027]/60 border-[#E63027] text-white',
+  in_use:    'bg-violet-600/60 border-violet-400 text-white',
+  blocked:   'bg-white/5 border-white/15 text-white/25',
 }
 
 const STATUS_LABEL: Record<DisplayStatus, string> = {
-  available: '예약 가능',
-  pending:   '대기중',
-  confirmed: '확정',
-  in_use:    '이용중',
-  blocked:   '사용 불가',
+  available: '예약 가능', pending: '대기중', confirmed: '확정',
+  in_use: '이용중', blocked: '사용 불가',
 }
+
+// 고정 시설 요소 (BAR, LOCKER 등)
+const FIXTURES = [
+  { label: 'BAR',       left: 315, top:  86, w: 90, h: 210, style: 'bg-red-950/60 border-red-900/60' },
+  { label: 'LOCKER 3',  left: 315, top: 498, w: 90, h: 22,  style: 'bg-zinc-800/80 border-zinc-600/40' },
+  { label: 'LOCKER 1',  left:   5, top: 625, w: 28, h: 72,  style: 'bg-zinc-800/80 border-zinc-600/40' },
+  { label: 'LOCKER 2',  left: 105, top: 672, w: 75, h: 24,  style: 'bg-zinc-800/80 border-zinc-600/40' },
+]
+
+const LABELS = [
+  { text: 'SMOKING\nAREA', left: 318, top: 528, size: '8px' },
+  { text: 'ENTRANCE →', left: 158, top: 696, size: '9px' },
+]
 
 export default function TableMap({ tables, selectedTableIds = [], activeTableId, onTableClick }: TableMapProps) {
   return (
     <div
-      className="relative overflow-hidden rounded-lg"
-      style={{
-        width: 380,
-        height: 520,
-        backgroundImage: "url('/images/ping_seat.png')",
-        backgroundSize: '380px auto',
-        backgroundPosition: `0px -${BG_CROP_Y}px`,
-        backgroundRepeat: 'no-repeat',
-      }}
+      className="relative bg-[#0d0d0d] rounded-lg border border-[#C1272D]/30 overflow-hidden"
+      style={{ width: 420, height: 720 }}
     >
-      {/* 반투명 오버레이 (이미지 위 가독성 향상) */}
-      <div className="absolute inset-0 bg-black/30 pointer-events-none" />
+      {/* 내부 댄스플로어 영역 표시 */}
+      <div
+        className="absolute bg-white/[0.015] border border-white/5 rounded-sm pointer-events-none"
+        style={{ left: 95, top: 65, width: 205, height: 520 }}
+      />
 
+      {/* 고정 시설 (BAR, LOCKER 등) */}
+      {FIXTURES.map(f => (
+        <div
+          key={f.label}
+          className={`absolute border rounded-sm flex items-center justify-center pointer-events-none ${f.style}`}
+          style={{ left: f.left, top: f.top, width: f.w, height: f.h }}
+        >
+          <span className="text-white/40 font-medium leading-tight text-center"
+            style={{ fontSize: '9px', whiteSpace: 'pre-line' }}>
+            {f.label}
+          </span>
+        </div>
+      ))}
+
+      {/* 라벨 */}
+      {LABELS.map(l => (
+        <div
+          key={l.text}
+          className="absolute text-white/20 pointer-events-none font-medium text-center leading-tight"
+          style={{ left: l.left, top: l.top, fontSize: l.size, whiteSpace: 'pre-line' }}
+        >
+          {l.text}
+        </div>
+      ))}
+
+      {/* 테이블 */}
       {tables.map((table) => {
-        const size = TABLE_SIZE[table.type] ?? TABLE_SIZE.Standard
-        const { x, y } = toScreen(table.position_x, table.position_y)
-        const left = x - size.w / 2
-        const top  = y - size.h / 2
+        const pos = TABLE_LAYOUT[table.id]
+        if (!pos) return null
 
+        const size = TABLE_SIZE[table.type] ?? TABLE_SIZE.Standard
+        const left = pos.x - size.w / 2
+        const top  = pos.y - size.h / 2
         const styleClass = STATUS_STYLE[table.displayStatus]
-        const isRound = table.type !== 'Standing'
-        const displayId = table.id.match(/^\d+$/) ? `${table.id}` : table.id
+        const displayId = table.id.match(/^\d+$/) ? table.id : table.id
         const isSelected = selectedTableIds.includes(table.id)
         const isActive = activeTableId === table.id
 
@@ -111,14 +143,13 @@ export default function TableMap({ tables, selectedTableIds = [], activeTableId,
             title={tooltipParts.join('\n')}
             onClick={() => onTableClick?.(table)}
             className={[
-              'absolute flex flex-col items-center justify-center border-2 z-10',
+              'absolute flex flex-col items-center justify-center border-2 rounded-lg z-10',
               styleClass,
-              isRound ? 'rounded-full' : 'rounded-md',
               onTableClick ? 'cursor-pointer hover:brightness-125' : 'cursor-default',
               isActive
-                ? 'ring-2 ring-white ring-offset-1 ring-offset-black/80 scale-110'
+                ? 'ring-2 ring-white ring-offset-1 ring-offset-[#0d0d0d] brightness-125'
                 : isSelected
-                ? 'ring-2 ring-white/60 ring-offset-1 ring-offset-black/80'
+                ? 'ring-2 ring-white/50 ring-offset-1 ring-offset-[#0d0d0d]'
                 : '',
               'select-none transition-all duration-150',
             ].join(' ')}
@@ -126,7 +157,7 @@ export default function TableMap({ tables, selectedTableIds = [], activeTableId,
           >
             <span className="text-[11px] font-bold leading-none">{displayId}</span>
             {table.reservation && (
-              <span className="text-[9px] leading-none mt-0.5 opacity-90">
+              <span className="text-[9px] leading-none mt-0.5 opacity-80">
                 {table.reservation.people_count}명
               </span>
             )}

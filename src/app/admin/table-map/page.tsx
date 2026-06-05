@@ -95,12 +95,22 @@ export default function TableMapPage() {
     setActiveTableId(null)
   }
 
-  // 테이블 클릭: 중복 클릭 허용 (이미 선택된 테이블도 추가 선택 유지)
+  // 테이블 클릭: 이미 선택된 테이블 재클릭 시 선택 해제 (토글)
   const handleTableClick = (table: TableWithStatus) => {
-    setSelectedTableIds(prev =>
-      prev.includes(table.id) ? prev : [...prev, table.id]
-    )
-    setActiveTableId(table.id)
+    setSelectedTableIds(prev => {
+      if (prev.includes(table.id)) {
+        const next = prev.filter(id => id !== table.id)
+        // 현재 활성 패널이 이 테이블이면 남은 것 중 마지막으로 이동
+        if (activeTableId === table.id) {
+          setActiveTableId(next[next.length - 1] ?? null)
+        }
+        return next
+      }
+      return [...prev, table.id]
+    })
+    if (!selectedTableIds.includes(table.id)) {
+      setActiveTableId(table.id)
+    }
   }
 
   const handlePanelClose = () => {

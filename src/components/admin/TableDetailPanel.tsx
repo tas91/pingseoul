@@ -31,11 +31,8 @@ const SLOT_LABEL: Record<string, string> = {
 }
 
 const STATUS_COLOR: Record<DisplayStatus, string> = {
-  available: 'text-emerald-400',
-  pending:   'text-amber-400',
-  confirmed: 'text-[#E63027]',
-  in_use:    'text-violet-400',
-  blocked:   'text-white/30',
+  available: 'text-emerald-400', pending: 'text-amber-400', confirmed: 'text-[#E63027]',
+  in_use: 'text-violet-400', blocked: 'text-white/40',
 }
 
 const STATUS_LABEL: Record<DisplayStatus, string> = {
@@ -44,6 +41,15 @@ const STATUS_LABEL: Record<DisplayStatus, string> = {
 
 async function patchReservation(id: string, body: Record<string, unknown>) {
   const res = await fetch(`/api/admin/reservations/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error('업데이트 실패')
+}
+
+async function patchTable(id: string, body: Record<string, unknown>) {
+  const res = await fetch(`/api/admin/tables/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -78,7 +84,7 @@ function AssignedCard({ r, onUpdated }: { r: ReservationListItem; onUpdated: () 
       </div>
       {error && <p className="text-ping-red text-xs">{error}</p>}
       {(r.status === 'pending' || r.status === 'confirmed' || r.status === 'in_use') && (
-        <div className="flex gap-2 pt-1">
+        <div className="flex gap-2 pt-0.5">
           {r.status === 'pending' && (
             <button onClick={() => act({ status: 'confirmed' as ReservationStatus })} disabled={busy}
               className={`${btn} bg-emerald-600 hover:bg-emerald-500 text-white`}>확정</button>
@@ -109,14 +115,15 @@ function PendingCard({
   const handleAssign = async () => {
     setBusy(true); setError(null)
     try {
-      // 선택된 모든 테이블에 순차 배치
-      for (const tid of selectedTableIds) {
-        await patchReservation(r.id, { table_id: tid })
-      }
+      await patchReservation(r.id, { table_id: tableId })
       onUpdated()
     } catch { setError('배치 중 오류가 발생했습니다.') }
     finally { setBusy(false) }
   }
+
+  const targetLabel = selectedTableIds.length > 1
+    ? `T${selectedTableIds.join(', T')}에 배치`
+    : `T${tableId}에 배치`
 
   return (
     <div className="bg-white/5 rounded-lg p-3 flex flex-col gap-2">
@@ -129,18 +136,13 @@ function PendingCard({
         <div><span className="text-ping-gray">인원 </span><span className="text-white">{r.people_count}명</span></div>
         <div><span className="text-ping-gray">슬롯 </span><span className="text-white">{SLOT_LABEL[r.arrival_slot] ?? r.arrival_slot}</span></div>
         {r.table && (
-          <div><span className="text-ping-gray">현재 배치 </span><span className="text-amber-400">T{r.table.id}</span></div>
+          <div><span className="text-ping-gray">현재 </span><span className="text-amber-400">T{r.table.id}</span></div>
         )}
       </div>
       {error && <p className="text-ping-red text-xs">{error}</p>}
-      <button
-        onClick={handleAssign}
-        disabled={busy}
-        className="w-full py-1.5 rounded-lg text-xs font-medium bg-ping-red hover:bg-ping-red/80 text-white transition-colors disabled:opacity-50"
-      >
-        {busy ? '배치 중...' : selectedTableIds.length > 1
-          ? `T${selectedTableIds.join(', T')}에 배치`
-          : `T${tableId}에 배치`}
+      <button onClick={handleAssign} disabled={busy}
+        className="w-full py-1.5 rounded-lg text-xs font-medium bg-ping-red hover:bg-ping-red/80 text-white transition-colors disabled:opacity-50">
+        {busy ? '배치 중...' : targetLabel}
       </button>
     </div>
   )
@@ -153,6 +155,7 @@ export default function TableDetailPanel({ table, selectedTableIds, date, slot, 
   const [pending, setPending] = useState<ReservationListItem[]>([])
   const [loadingAssigned, setLoadingAssigned] = useState(true)
   const [loadingPending, setLoadingPending] = useState(true)
+  const [busyBlock, setBusyBlock] = useState(false)
 
   const displayId = table.id.match(/^\d+$/) ? `T${table.id}` : table.id
 
@@ -163,28 +166,35 @@ export default function TableDetailPanel({ table, selectedTableIds, date, slot, 
     const res = await fetch(`/api/admin/reservations?${params}`)
     if (res.ok) {
       const json = await res.json()
-      const all: ReservationListItem[] = json.reservations ?? []
-      setAssigned(all.filter(r => r.arrival_slot === slot))
+      setAssigned(json.reservations ?? [])
     }
     setLoadingAssigned(false)
-  }, [table.id, date, slot])
+  }, [table.id, date])
 
-  // 대기중 예약 전체 fetch (날짜+슬롯 기준)
+  // 대기중 예약 전체 fetch (해당 날짜 기준, 슬롯 무관)
   const fetchPending = useCallback(async () => {
     setLoadingPending(true)
     const params = new URLSearchParams({ business_date: date, status: 'pending' })
     const res = await fetch(`/api/admin/reservations?${params}`)
     if (res.ok) {
       const json = await res.json()
-      const all: ReservationListItem[] = json.reservations ?? []
-      setPending(all.filter(r => r.arrival_slot === slot))
+      setPending(json.reservations ?? [])
     }
     setLoadingPending(false)
-  }, [date, slot])
+  }, [date])
 
   useEffect(() => { fetchAssigned(); fetchPending() }, [fetchAssigned, fetchPending])
 
   const handleUpdated = () => { fetchAssigned(); fetchPending(); onUpdated() }
+
+  // 사용불가 토글
+  const handleToggleBlock = async () => {
+    setBusyBlock(true)
+    try {
+      await patchTable(table.id, { is_active: !table.is_active })
+      onUpdated()
+    } finally { setBusyBlock(false) }
+  }
 
   const selectedLabel = selectedTableIds.length > 1
     ? `T${selectedTableIds.join(' · T')}`
@@ -209,12 +219,25 @@ export default function TableDetailPanel({ table, selectedTableIds, date, slot, 
         </button>
       </div>
 
-      {/* Slot + 다중선택 안내 */}
-      <div className="px-4 py-2 bg-white/[0.03] border-b border-white/10">
-        <p className="text-xs text-ping-gray">{date} · {SLOT_LABEL[slot] ?? slot}</p>
-        {selectedTableIds.length > 1 && (
-          <p className="text-xs text-ping-red mt-0.5">{selectedTableIds.length}개 테이블 선택됨</p>
-        )}
+      {/* Slot + 다중선택 + 사용불가 버튼 */}
+      <div className="px-4 py-2 bg-white/[0.03] border-b border-white/10 flex items-center justify-between gap-2">
+        <div>
+          <p className="text-xs text-ping-gray">{date} · {SLOT_LABEL[slot] ?? slot}</p>
+          {selectedTableIds.length > 1 && (
+            <p className="text-xs text-ping-red mt-0.5">{selectedTableIds.length}개 테이블 선택됨</p>
+          )}
+        </div>
+        <button
+          onClick={handleToggleBlock}
+          disabled={busyBlock}
+          className={`shrink-0 px-2.5 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50 ${
+            table.is_active
+              ? 'bg-white/10 hover:bg-white/20 text-white/70 hover:text-white'
+              : 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400'
+          }`}
+        >
+          {table.is_active ? '사용불가' : '사용가능'}
+        </button>
       </div>
 
       {/* Tabs */}
@@ -224,9 +247,7 @@ export default function TableDetailPanel({ table, selectedTableIds, date, slot, 
             key={key}
             onClick={() => setTab(key)}
             className={`flex-1 py-2 text-xs font-medium transition-colors ${
-              tab === key
-                ? 'text-white border-b-2 border-ping-red'
-                : 'text-ping-gray hover:text-white'
+              tab === key ? 'text-white border-b-2 border-ping-red' : 'text-ping-gray hover:text-white'
             }`}
           >
             {label}
@@ -253,15 +274,9 @@ export default function TableDetailPanel({ table, selectedTableIds, date, slot, 
           loadingPending
             ? <p className="text-ping-gray text-xs text-center py-6">불러오는 중...</p>
             : pending.length === 0
-            ? <p className="text-ping-gray text-xs text-center py-6">대기중 예약 없음</p>
+            ? <p className="text-ping-gray text-xs text-center py-6">오늘 대기중 예약 없음</p>
             : pending.map(r => (
-              <PendingCard
-                key={r.id}
-                r={r}
-                tableId={table.id}
-                selectedTableIds={selectedTableIds}
-                onUpdated={handleUpdated}
-              />
+              <PendingCard key={r.id} r={r} tableId={table.id} selectedTableIds={selectedTableIds} onUpdated={handleUpdated} />
             ))
         )}
       </div>
