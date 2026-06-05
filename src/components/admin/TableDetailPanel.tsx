@@ -128,9 +128,7 @@ function PendingCard({
     finally { setBusy(false) }
   }
 
-  const targetLabel = selectedTableIds.length > 1
-    ? `T${selectedTableIds.join(', T')}에 배치`
-    : `T${tableId}에 배치`
+  const targetLabel = `T${tableId}에 배치`
 
   return (
     <div className="bg-white/5 rounded-lg p-3 flex flex-col gap-2">
@@ -166,17 +164,22 @@ export default function TableDetailPanel({ table, selectedTableIds, date, onClos
 
   const displayId = table.id.match(/^\d+$/) ? `T${table.id}` : table.id
 
-  // 이 테이블에 배치된 예약 fetch
+  // 선택된 모든 테이블의 배치 예약 fetch
   const fetchAssigned = useCallback(async () => {
     setLoadingAssigned(true)
-    const params = new URLSearchParams({ table_id: table.id, business_date: date })
-    const res = await fetch(`/api/admin/reservations?${params}`)
-    if (res.ok) {
-      const json = await res.json()
-      setAssigned(json.reservations ?? [])
-    }
+    const targets = selectedTableIds.length > 0 ? selectedTableIds : [table.id]
+    const results = await Promise.all(
+      targets.map(async (tid) => {
+        const params = new URLSearchParams({ table_id: tid, business_date: date })
+        const res = await fetch(`/api/admin/reservations?${params}`)
+        if (!res.ok) return []
+        const json = await res.json()
+        return json.reservations ?? []
+      })
+    )
+    setAssigned(results.flat())
     setLoadingAssigned(false)
-  }, [table.id, date])
+  }, [selectedTableIds, table.id, date])
 
   // 배치 필요 예약 fetch — pending/confirmed/in_use 전체 (table_id 무관)
   const fetchPending = useCallback(async () => {
