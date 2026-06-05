@@ -29,12 +29,9 @@ interface TableMapResponse {
   slotCounts: Record<SlotKey, number>
 }
 
-const SLOTS: { key: SlotKey; label: string }[] = [
-  { key: 'slot_00', label: '00' },
-  { key: 'slot_02', label: '02' },
-  { key: 'slot_04', label: '04' },
-  { key: 'slot_06', label: '06' },
-]
+const SLOT_LABEL: Record<SlotKey, string> = {
+  slot_00: '00시', slot_02: '02시', slot_04: '04시', slot_06: '06시',
+}
 
 const LEGEND = [
   { label: '예약 가능', color: 'bg-emerald-400' },
@@ -50,26 +47,22 @@ function todayStr() {
 
 export default function TableMapPage() {
   const [selectedDate, setSelectedDate] = useState(todayStr)
-  const [selectedSlot, setSelectedSlot] = useState<SlotKey>('slot_00')
   const [data, setData] = useState<TableMapResponse | null>(null)
   const [loading, setLoading] = useState(true)
-
-  // 다중 선택: 클릭 누적 (중복 클릭 허용)
   const [selectedTableIds, setSelectedTableIds] = useState<string[]>([])
-  // 패널에 표시 중인 테이블 (가장 최근 클릭)
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
 
-  const fetchData = useCallback(async (date: string, slot: SlotKey) => {
+  // 슬롯 무관 — 날짜 기준 전체 조회
+  const fetchData = useCallback(async (date: string) => {
     setLoading(true)
-    const params = new URLSearchParams({ date, slot })
-    const res = await fetch(`/api/admin/table-map?${params}`)
+    const res = await fetch(`/api/admin/table-map?date=${date}`)
     if (res.ok) setData(await res.json())
     setLoading(false)
   }, [])
 
   useEffect(() => {
-    fetchData(selectedDate, selectedSlot)
-  }, [selectedDate, selectedSlot, fetchData])
+    fetchData(selectedDate)
+  }, [selectedDate, fetchData])
 
   // 실시간 구독
   useEffect(() => {
@@ -77,11 +70,11 @@ export default function TableMapPage() {
     const channel = supabase
       .channel('admin-table-map-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => {
-        fetchData(selectedDate, selectedSlot)
+        fetchData(selectedDate)
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [selectedDate, selectedSlot, fetchData])
+  }, [selectedDate, fetchData])
 
   const handleDateChange = (date: string) => {
     setSelectedDate(date)
@@ -89,18 +82,11 @@ export default function TableMapPage() {
     setActiveTableId(null)
   }
 
-  const handleSlotChange = (slot: SlotKey) => {
-    setSelectedSlot(slot)
-    setSelectedTableIds([])
-    setActiveTableId(null)
-  }
-
-  // 테이블 클릭: 이미 선택된 테이블 재클릭 시 선택 해제 (토글)
+  // 동일 테이블 재클릭 시 선택 해제 (토글)
   const handleTableClick = (table: TableWithStatus) => {
     setSelectedTableIds(prev => {
       if (prev.includes(table.id)) {
         const next = prev.filter(id => id !== table.id)
-        // 현재 활성 패널이 이 테이블이면 남은 것 중 마지막으로 이동
         if (activeTableId === table.id) {
           setActiveTableId(next[next.length - 1] ?? null)
         }
@@ -125,8 +111,8 @@ export default function TableMapPage() {
     <div className="max-w-5xl">
       <h1 className="text-xl font-semibold text-white mb-6">테이블맵</h1>
 
-      {/* Date + Slot controls */}
-      <div className="flex flex-wrap items-center gap-4 mb-6">
+      {/* 날짜 + 시간대별 현황 (정보 표시용, 필터 아님) */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <input
           type="date"
           value={selectedDate}
@@ -134,34 +120,27 @@ export default function TableMapPage() {
           className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-ping-red transition-colors"
         />
 
-        <div className="flex gap-2">
-          {SLOTS.map(({ key, label }) => {
-            const count = slotCounts?.[key] ?? 0
-            const isActive = selectedSlot === key
-            return (
-              <button
+        {/* 시간대별 예약 수 — 읽기 전용 현황 */}
+        {slotCounts && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-ping-gray">예약 현황</span>
+            {(Object.entries(slotCounts) as [SlotKey, number][]).map(([key, count]) => (
+              <span
                 key={key}
-                onClick={() => handleSlotChange(key)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-ping-red text-white'
-                    : 'border border-white/10 text-ping-gray hover:text-white hover:border-white/30'
+                className={`text-xs px-2.5 py-1 rounded-lg border ${
+                  count > 0
+                    ? 'border-ping-red/40 text-white bg-ping-red/10'
+                    : 'border-white/10 text-white/30'
                 }`}
               >
-                {label}시
-                {count > 0 && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                    isActive ? 'bg-white/20 text-white' : 'bg-white/10 text-white/60'
-                  }`}>
-                    {count}
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </div>
+                {SLOT_LABEL[key]}
+                {count > 0 && <span className="ml-1.5 font-semibold">{count}</span>}
+              </span>
+            ))}
+          </div>
+        )}
 
-        {/* 선택 해제 버튼 */}
+        {/* 선택 해제 */}
         {selectedTableIds.length > 0 && (
           <button
             onClick={handlePanelClose}
@@ -174,10 +153,9 @@ export default function TableMapPage() {
 
       {/* Map + Panel */}
       <div className="flex gap-4 items-start">
-        {/* Map container */}
         <div className="bg-black/20 border border-white/10 rounded-xl p-3 shrink-0">
           {loading ? (
-            <div className="flex items-center justify-center w-[380px] h-[520px]">
+            <div className="flex items-center justify-center w-[420px] h-[720px]">
               <p className="text-ping-gray text-sm">불러오는 중...</p>
             </div>
           ) : data ? (
@@ -188,21 +166,19 @@ export default function TableMapPage() {
               onTableClick={handleTableClick}
             />
           ) : (
-            <div className="flex items-center justify-center w-[380px] h-[520px]">
+            <div className="flex items-center justify-center w-[420px] h-[720px]">
               <p className="text-ping-gray text-sm">데이터를 불러올 수 없습니다.</p>
             </div>
           )}
         </div>
 
-        {/* Table detail panel */}
         {activeTable && (
           <TableDetailPanel
             table={activeTable}
             selectedTableIds={selectedTableIds}
             date={selectedDate}
-            slot={selectedSlot}
             onClose={handlePanelClose}
-            onUpdated={() => fetchData(selectedDate, selectedSlot)}
+            onUpdated={() => fetchData(selectedDate)}
           />
         )}
       </div>

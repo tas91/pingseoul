@@ -21,7 +21,6 @@ interface Props {
   table: TableWithStatus
   selectedTableIds: string[]
   date: string
-  slot: string
   onClose: () => void
   onUpdated: () => void
 }
@@ -149,7 +148,7 @@ function PendingCard({
 }
 
 // ── 메인 패널 ─────────────────────────────────────────────────────
-export default function TableDetailPanel({ table, selectedTableIds, date, slot, onClose, onUpdated }: Props) {
+export default function TableDetailPanel({ table, selectedTableIds, date, onClose, onUpdated }: Props) {
   const [tab, setTab] = useState<TabKey>('assigned')
   const [assigned, setAssigned] = useState<ReservationListItem[]>([])
   const [pending, setPending] = useState<ReservationListItem[]>([])
@@ -222,7 +221,7 @@ export default function TableDetailPanel({ table, selectedTableIds, date, slot, 
       {/* Slot + 다중선택 + 사용불가 버튼 */}
       <div className="px-4 py-2 bg-white/[0.03] border-b border-white/10 flex items-center justify-between gap-2">
         <div>
-          <p className="text-xs text-ping-gray">{date} · {SLOT_LABEL[slot] ?? slot}</p>
+          <p className="text-xs text-ping-gray">{date}</p>
           {selectedTableIds.length > 1 && (
             <p className="text-xs text-ping-red mt-0.5">{selectedTableIds.length}개 테이블 선택됨</p>
           )}
