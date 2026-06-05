@@ -69,7 +69,7 @@ const STATUS_LABEL: Record<DisplayStatus, string> = {
 const FIXTURES = [
   { label: 'BAR',       left: 315, top:  86, w: 90, h: 210, style: 'bg-red-950/60 border-red-900/60' },
   { label: 'LOCKER 3',  left: 315, top: 498, w: 90, h: 22,  style: 'bg-zinc-800/80 border-zinc-600/40' },
-  { label: 'LOCKER 1',  left:   5, top: 625, w: 28, h: 72,  style: 'bg-zinc-800/80 border-zinc-600/40' },
+  { label: 'LOCKER 1',  left:   5, top: 678, w: 26, h: 28,  style: 'bg-zinc-800/80 border-zinc-600/40' },
   { label: 'LOCKER 2',  left: 105, top: 672, w: 75, h: 24,  style: 'bg-zinc-800/80 border-zinc-600/40' },
 ]
 
