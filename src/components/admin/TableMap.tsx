@@ -20,6 +20,8 @@ interface TableWithStatus {
 
 interface TableMapProps {
   tables: TableWithStatus[]
+  selectedTableId?: string
+  onTableClick?: (table: TableWithStatus) => void
 }
 
 const STATUS_STYLE: Record<DisplayStatus, string> = {
@@ -44,7 +46,7 @@ const STATUS_LABEL: Record<DisplayStatus, string> = {
   blocked:   '사용 불가',
 }
 
-export default function TableMap({ tables }: TableMapProps) {
+export default function TableMap({ tables, selectedTableId, onTableClick }: TableMapProps) {
   return (
     <div className="relative w-[560px] h-[720px] bg-white/[0.02] rounded-lg border border-white/5">
       {tables.map((table) => {
@@ -54,6 +56,7 @@ export default function TableMap({ tables }: TableMapProps) {
         const styleClass = STATUS_STYLE[table.displayStatus]
         const isRound = table.type !== 'Standing'
         const displayId = table.id.match(/^\d+$/) ? `T${table.id}` : table.id
+        const isSelected = selectedTableId === table.id
 
         const tooltipParts = [
           `테이블 ${displayId} (${table.type}) · 수용 ${table.capacity}명`,
@@ -68,9 +71,12 @@ export default function TableMap({ tables }: TableMapProps) {
           <div
             key={table.id}
             title={tooltipParts.join('\n')}
+            onClick={() => onTableClick?.(table)}
             className={`absolute flex flex-col items-center justify-center border-2 ${styleClass} ${
               isRound ? 'rounded-full' : 'rounded-lg'
-            } cursor-default select-none transition-colors duration-200`}
+            } ${onTableClick ? 'cursor-pointer hover:brightness-125' : 'cursor-default'} ${
+              isSelected ? 'ring-2 ring-white ring-offset-1 ring-offset-black' : ''
+            } select-none transition-all duration-150`}
             style={{ left, top, width: size.w, height: size.h }}
           >
             <span className="text-xs font-bold leading-none">{displayId}</span>

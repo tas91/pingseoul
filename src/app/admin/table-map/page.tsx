@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import TableMap from '@/components/admin/TableMap'
+import TableDetailPanel from '@/components/admin/TableDetailPanel'
+import { createClient } from '@/lib/supabase/client'
 
 type DisplayStatus = 'available' | 'pending' | 'confirmed' | 'in_use' | 'blocked'
 type SlotKey = 'slot_00' | 'slot_02' | 'slot_04' | 'slot_06'
@@ -51,6 +53,7 @@ export default function TableMapPage() {
   const [selectedSlot, setSelectedSlot] = useState<SlotKey>('slot_00')
   const [data, setData] = useState<TableMapResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selectedTable, setSelectedTable] = useState<TableWithStatus | null>(null)
 
   const fetchData = useCallback(async (date: string, slot: SlotKey) => {
     setLoading(true)
@@ -64,10 +67,33 @@ export default function TableMapPage() {
     fetchData(selectedDate, selectedSlot)
   }, [selectedDate, selectedSlot, fetchData])
 
+  // 실시간 구독: 예약 변경 시 테이블맵 자동 갱신
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('admin-table-map-rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => {
+        fetchData(selectedDate, selectedSlot)
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [selectedDate, selectedSlot, fetchData])
+
+  // 날짜/슬롯 변경 시 패널 닫기
+  const handleDateChange = (date: string) => {
+    setSelectedDate(date)
+    setSelectedTable(null)
+  }
+  const handleSlotChange = (slot: SlotKey) => {
+    setSelectedSlot(slot)
+    setSelectedTable(null)
+  }
+
   const slotCounts = data?.slotCounts
 
   return (
-    <div className="max-w-4xl">
+    <div className="max-w-5xl">
       <h1 className="text-xl font-semibold text-white mb-6">테이블맵</h1>
 
       {/* Date + Slot controls */}
@@ -75,7 +101,7 @@ export default function TableMapPage() {
         <input
           type="date"
           value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
+          onChange={(e) => handleDateChange(e.target.value)}
           className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-ping-red transition-colors"
         />
 
@@ -86,7 +112,7 @@ export default function TableMapPage() {
             return (
               <button
                 key={key}
-                onClick={() => setSelectedSlot(key)}
+                onClick={() => handleSlotChange(key)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive
                     ? 'bg-ping-red text-white'
@@ -107,18 +133,36 @@ export default function TableMapPage() {
         </div>
       </div>
 
-      {/* Map container */}
-      <div className="bg-white/5 border border-white/10 rounded-xl p-4 overflow-x-auto">
-        {loading ? (
-          <div className="flex items-center justify-center w-[560px] h-[720px]">
-            <p className="text-ping-gray text-sm">불러오는 중...</p>
-          </div>
-        ) : data ? (
-          <TableMap tables={data.tables} />
-        ) : (
-          <div className="flex items-center justify-center w-[560px] h-[720px]">
-            <p className="text-ping-gray text-sm">데이터를 불러올 수 없습니다.</p>
-          </div>
+      {/* Map + Panel */}
+      <div className="flex gap-4 items-start">
+        {/* Map container */}
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4 overflow-x-auto shrink-0">
+          {loading ? (
+            <div className="flex items-center justify-center w-[560px] h-[720px]">
+              <p className="text-ping-gray text-sm">불러오는 중...</p>
+            </div>
+          ) : data ? (
+            <TableMap
+              tables={data.tables}
+              selectedTableId={selectedTable?.id}
+              onTableClick={setSelectedTable}
+            />
+          ) : (
+            <div className="flex items-center justify-center w-[560px] h-[720px]">
+              <p className="text-ping-gray text-sm">데이터를 불러올 수 없습니다.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Table detail panel */}
+        {selectedTable && (
+          <TableDetailPanel
+            table={selectedTable}
+            date={selectedDate}
+            slot={selectedSlot}
+            onClose={() => setSelectedTable(null)}
+            onUpdated={() => fetchData(selectedDate, selectedSlot)}
+          />
         )}
       </div>
 
