@@ -6,6 +6,7 @@ import ReservationStatusBadge from './reservations/ReservationStatusBadge'
 import type { ReservationListItem, ReservationStatus } from '@/lib/types'
 
 type DisplayStatus = 'available' | 'pending' | 'confirmed' | 'in_use' | 'blocked'
+type TabKey = 'assigned' | 'pending'
 
 interface TableWithStatus {
   id: string
@@ -13,16 +14,12 @@ interface TableWithStatus {
   capacity: number
   is_active: boolean
   displayStatus: DisplayStatus
-  reservation?: {
-    reservation_number: string
-    people_count: number
-    status: string
-    count: number
-  }
+  reservation?: { reservation_number: string; people_count: number; status: string; count: number }
 }
 
 interface Props {
   table: TableWithStatus
+  selectedTableIds: string[]
   date: string
   slot: string
   onClose: () => void
@@ -30,18 +27,7 @@ interface Props {
 }
 
 const SLOT_LABEL: Record<string, string> = {
-  slot_00: '00:00',
-  slot_02: '02:00',
-  slot_04: '04:00',
-  slot_06: '06:00',
-}
-
-const STATUS_LABEL: Record<DisplayStatus, string> = {
-  available: '예약 가능',
-  pending:   '대기중',
-  confirmed: '확정',
-  in_use:    '이용중',
-  blocked:   '사용 불가',
+  slot_00: '00:00', slot_02: '02:00', slot_04: '04:00', slot_06: '06:00',
 }
 
 const STATUS_COLOR: Record<DisplayStatus, string> = {
@@ -50,6 +36,10 @@ const STATUS_COLOR: Record<DisplayStatus, string> = {
   confirmed: 'text-[#E63027]',
   in_use:    'text-violet-400',
   blocked:   'text-white/30',
+}
+
+const STATUS_LABEL: Record<DisplayStatus, string> = {
+  available: '예약 가능', pending: '대기중', confirmed: '확정', in_use: '이용중', blocked: '사용 불가',
 }
 
 async function patchReservation(id: string, body: Record<string, unknown>) {
@@ -61,92 +51,47 @@ async function patchReservation(id: string, body: Record<string, unknown>) {
   if (!res.ok) throw new Error('업데이트 실패')
 }
 
-function ReservationCard({
-  r,
-  onUpdated,
-}: {
-  r: ReservationListItem
-  onUpdated: () => void
-}) {
+// ── 배치된 예약 카드 ──────────────────────────────────────────────
+function AssignedCard({ r, onUpdated }: { r: ReservationListItem; onUpdated: () => void }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const act = async (body: Record<string, unknown>) => {
-    setBusy(true)
-    setError(null)
-    try {
-      await patchReservation(r.id, body)
-      onUpdated()
-    } catch {
-      setError('처리 중 오류가 발생했습니다.')
-    } finally {
-      setBusy(false)
-    }
+    setBusy(true); setError(null)
+    try { await patchReservation(r.id, body); onUpdated() }
+    catch { setError('처리 중 오류가 발생했습니다.') }
+    finally { setBusy(false) }
   }
 
-  const btnBase = 'flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50'
+  const btn = 'flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50'
 
   return (
-    <div className="bg-white/5 rounded-lg p-4 flex flex-col gap-3">
+    <div className="bg-white/5 rounded-lg p-3 flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <span className="font-mono text-xs text-ping-gray">{r.reservation_number}</span>
         <ReservationStatusBadge status={r.status} />
       </div>
-
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        <div>
-          <span className="text-xs text-ping-gray">게스트</span>
-          <p className="text-white">{r.guest_name ?? '—'}</p>
-        </div>
-        <div>
-          <span className="text-xs text-ping-gray">인원</span>
-          <p className="text-white">{r.people_count}명</p>
-        </div>
-        <div>
-          <span className="text-xs text-ping-gray">슬롯</span>
-          <p className="text-white">{SLOT_LABEL[r.arrival_slot] ?? r.arrival_slot}</p>
-        </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+        <div><span className="text-ping-gray">게스트 </span><span className="text-white">{r.guest_name ?? '—'}</span></div>
+        <div><span className="text-ping-gray">인원 </span><span className="text-white">{r.people_count}명</span></div>
+        <div><span className="text-ping-gray">슬롯 </span><span className="text-white">{SLOT_LABEL[r.arrival_slot] ?? r.arrival_slot}</span></div>
       </div>
-
       {error && <p className="text-ping-red text-xs">{error}</p>}
-
       {(r.status === 'pending' || r.status === 'confirmed' || r.status === 'in_use') && (
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-1">
           {r.status === 'pending' && (
-            <button
-              onClick={() => act({ status: 'confirmed' as ReservationStatus })}
-              disabled={busy}
-              className={`${btnBase} bg-emerald-600 hover:bg-emerald-500 text-white`}
-            >
-              확정
-            </button>
+            <button onClick={() => act({ status: 'confirmed' as ReservationStatus })} disabled={busy}
+              className={`${btn} bg-emerald-600 hover:bg-emerald-500 text-white`}>확정</button>
           )}
-          {r.status === 'confirmed' && (
-            <>
-              <button
-                onClick={() => act({ status: 'in_use' as ReservationStatus })}
-                disabled={busy}
-                className={`${btnBase} bg-blue-600 hover:bg-blue-500 text-white`}
-              >
-                체크인
-              </button>
-              <button
-                onClick={() => act({ status: 'no_show' as ReservationStatus })}
-                disabled={busy}
-                className={`${btnBase} border border-orange-500/50 text-orange-400 hover:bg-orange-500/10`}
-              >
-                노쇼
-              </button>
-            </>
-          )}
+          {r.status === 'confirmed' && (<>
+            <button onClick={() => act({ status: 'in_use' as ReservationStatus })} disabled={busy}
+              className={`${btn} bg-blue-600 hover:bg-blue-500 text-white`}>체크인</button>
+            <button onClick={() => act({ status: 'no_show' as ReservationStatus })} disabled={busy}
+              className={`${btn} border border-orange-500/50 text-orange-400 hover:bg-orange-500/10`}>노쇼</button>
+          </>)}
           {r.status === 'in_use' && (
-            <button
-              onClick={() => act({ status: 'completed' as ReservationStatus })}
-              disabled={busy}
-              className={`${btnBase} bg-white/10 hover:bg-white/20 text-white`}
-            >
-              체크아웃
-            </button>
+            <button onClick={() => act({ status: 'completed' as ReservationStatus })} disabled={busy}
+              className={`${btn} bg-white/10 hover:bg-white/20 text-white`}>체크아웃</button>
           )}
         </div>
       )}
@@ -154,69 +99,170 @@ function ReservationCard({
   )
 }
 
-export default function TableDetailPanel({ table, date, slot, onClose, onUpdated }: Props) {
-  const [reservations, setReservations] = useState<ReservationListItem[]>([])
-  const [loading, setLoading] = useState(true)
+// ── 대기중 배치 카드 ──────────────────────────────────────────────
+function PendingCard({
+  r, tableId, selectedTableIds, onUpdated,
+}: { r: ReservationListItem; tableId: string; selectedTableIds: string[]; onUpdated: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleAssign = async () => {
+    setBusy(true); setError(null)
+    try {
+      // 선택된 모든 테이블에 순차 배치
+      for (const tid of selectedTableIds) {
+        await patchReservation(r.id, { table_id: tid })
+      }
+      onUpdated()
+    } catch { setError('배치 중 오류가 발생했습니다.') }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div className="bg-white/5 rounded-lg p-3 flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-xs text-ping-gray">{r.reservation_number}</span>
+        <ReservationStatusBadge status={r.status} />
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+        <div><span className="text-ping-gray">게스트 </span><span className="text-white">{r.guest_name ?? '—'}</span></div>
+        <div><span className="text-ping-gray">인원 </span><span className="text-white">{r.people_count}명</span></div>
+        <div><span className="text-ping-gray">슬롯 </span><span className="text-white">{SLOT_LABEL[r.arrival_slot] ?? r.arrival_slot}</span></div>
+        {r.table && (
+          <div><span className="text-ping-gray">현재 배치 </span><span className="text-amber-400">T{r.table.id}</span></div>
+        )}
+      </div>
+      {error && <p className="text-ping-red text-xs">{error}</p>}
+      <button
+        onClick={handleAssign}
+        disabled={busy}
+        className="w-full py-1.5 rounded-lg text-xs font-medium bg-ping-red hover:bg-ping-red/80 text-white transition-colors disabled:opacity-50"
+      >
+        {busy ? '배치 중...' : selectedTableIds.length > 1
+          ? `T${selectedTableIds.join(', T')}에 배치`
+          : `T${tableId}에 배치`}
+      </button>
+    </div>
+  )
+}
+
+// ── 메인 패널 ─────────────────────────────────────────────────────
+export default function TableDetailPanel({ table, selectedTableIds, date, slot, onClose, onUpdated }: Props) {
+  const [tab, setTab] = useState<TabKey>('assigned')
+  const [assigned, setAssigned] = useState<ReservationListItem[]>([])
+  const [pending, setPending] = useState<ReservationListItem[]>([])
+  const [loadingAssigned, setLoadingAssigned] = useState(true)
+  const [loadingPending, setLoadingPending] = useState(true)
 
   const displayId = table.id.match(/^\d+$/) ? `T${table.id}` : table.id
 
-  const fetchReservations = useCallback(async () => {
-    setLoading(true)
+  // 이 테이블에 배치된 예약 fetch
+  const fetchAssigned = useCallback(async () => {
+    setLoadingAssigned(true)
     const params = new URLSearchParams({ table_id: table.id, business_date: date })
     const res = await fetch(`/api/admin/reservations?${params}`)
     if (res.ok) {
       const json = await res.json()
       const all: ReservationListItem[] = json.reservations ?? []
-      setReservations(all.filter((r) => r.arrival_slot === slot))
+      setAssigned(all.filter(r => r.arrival_slot === slot))
     }
-    setLoading(false)
+    setLoadingAssigned(false)
   }, [table.id, date, slot])
 
-  useEffect(() => {
-    fetchReservations()
-  }, [fetchReservations])
+  // 대기중 예약 전체 fetch (날짜+슬롯 기준)
+  const fetchPending = useCallback(async () => {
+    setLoadingPending(true)
+    const params = new URLSearchParams({ business_date: date, status: 'pending' })
+    const res = await fetch(`/api/admin/reservations?${params}`)
+    if (res.ok) {
+      const json = await res.json()
+      const all: ReservationListItem[] = json.reservations ?? []
+      setPending(all.filter(r => r.arrival_slot === slot))
+    }
+    setLoadingPending(false)
+  }, [date, slot])
 
-  const handleUpdated = () => {
-    fetchReservations()
-    onUpdated()
-  }
+  useEffect(() => { fetchAssigned(); fetchPending() }, [fetchAssigned, fetchPending])
+
+  const handleUpdated = () => { fetchAssigned(); fetchPending(); onUpdated() }
+
+  const selectedLabel = selectedTableIds.length > 1
+    ? `T${selectedTableIds.join(' · T')}`
+    : displayId
 
   return (
     <aside className="w-72 shrink-0 bg-[#161616] border border-white/10 rounded-xl flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-start justify-between px-4 py-4 border-b border-white/10">
+      <div className="flex items-start justify-between px-4 py-3 border-b border-white/10">
         <div>
-          <p className="text-white font-semibold text-base">
-            테이블 {displayId}
+          <p className="text-white font-semibold text-sm">
+            {selectedLabel}
             <span className="ml-2 text-xs text-ping-gray font-normal">{table.type}</span>
           </p>
           <p className="text-xs text-ping-gray mt-0.5">수용 {table.capacity}명</p>
-          <p className={`text-xs mt-1 font-medium ${STATUS_COLOR[table.displayStatus]}`}>
+          <p className={`text-xs mt-0.5 font-medium ${STATUS_COLOR[table.displayStatus]}`}>
             {STATUS_LABEL[table.displayStatus]}
           </p>
         </div>
-        <button onClick={onClose} className="text-ping-gray hover:text-white transition-colors mt-0.5">
-          <X size={18} />
+        <button onClick={onClose} className="text-ping-gray hover:text-white transition-colors">
+          <X size={16} />
         </button>
       </div>
 
-      {/* Slot info */}
+      {/* Slot + 다중선택 안내 */}
       <div className="px-4 py-2 bg-white/[0.03] border-b border-white/10">
-        <p className="text-xs text-ping-gray">
-          {date} · {SLOT_LABEL[slot] ?? slot} 슬롯
-        </p>
+        <p className="text-xs text-ping-gray">{date} · {SLOT_LABEL[slot] ?? slot}</p>
+        {selectedTableIds.length > 1 && (
+          <p className="text-xs text-ping-red mt-0.5">{selectedTableIds.length}개 테이블 선택됨</p>
+        )}
       </div>
 
-      {/* Reservations */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-        {loading ? (
-          <p className="text-ping-gray text-xs text-center py-6">불러오는 중...</p>
-        ) : reservations.length === 0 ? (
-          <p className="text-ping-gray text-xs text-center py-6">해당 슬롯에 예약 없음</p>
-        ) : (
-          reservations.map((r) => (
-            <ReservationCard key={r.id} r={r} onUpdated={handleUpdated} />
-          ))
+      {/* Tabs */}
+      <div className="flex border-b border-white/10">
+        {([['assigned', '배치된 예약'], ['pending', '대기중 배치']] as [TabKey, string][]).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`flex-1 py-2 text-xs font-medium transition-colors ${
+              tab === key
+                ? 'text-white border-b-2 border-ping-red'
+                : 'text-ping-gray hover:text-white'
+            }`}
+          >
+            {label}
+            {key === 'assigned' && assigned.length > 0 && (
+              <span className="ml-1 text-[10px] bg-white/10 px-1 rounded-full">{assigned.length}</span>
+            )}
+            {key === 'pending' && pending.length > 0 && (
+              <span className="ml-1 text-[10px] bg-amber-500/20 text-amber-400 px-1 rounded-full">{pending.length}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-2">
+        {tab === 'assigned' && (
+          loadingAssigned
+            ? <p className="text-ping-gray text-xs text-center py-6">불러오는 중...</p>
+            : assigned.length === 0
+            ? <p className="text-ping-gray text-xs text-center py-6">배치된 예약 없음</p>
+            : assigned.map(r => <AssignedCard key={r.id} r={r} onUpdated={handleUpdated} />)
+        )}
+        {tab === 'pending' && (
+          loadingPending
+            ? <p className="text-ping-gray text-xs text-center py-6">불러오는 중...</p>
+            : pending.length === 0
+            ? <p className="text-ping-gray text-xs text-center py-6">대기중 예약 없음</p>
+            : pending.map(r => (
+              <PendingCard
+                key={r.id}
+                r={r}
+                tableId={table.id}
+                selectedTableIds={selectedTableIds}
+                onUpdated={handleUpdated}
+              />
+            ))
         )}
       </div>
     </aside>

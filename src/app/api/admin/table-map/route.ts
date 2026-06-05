@@ -74,8 +74,8 @@ export async function GET(req: NextRequest) {
     if (key in slotCounts) slotCounts[key]++
   }
 
-  // Build final table list with displayStatus
-  const result = tables.map((table) => {
+  // Build final table list with displayStatus (display_order null인 테스트 테이블 제외)
+  const result = tables.filter(t => t.display_order !== null).map((table) => {
     if (!table.is_active) {
       return { ...table, displayStatus: 'blocked' as DisplayStatus }
     }

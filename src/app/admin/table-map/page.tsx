@@ -53,7 +53,11 @@ export default function TableMapPage() {
   const [selectedSlot, setSelectedSlot] = useState<SlotKey>('slot_00')
   const [data, setData] = useState<TableMapResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [selectedTable, setSelectedTable] = useState<TableWithStatus | null>(null)
+
+  // 다중 선택: 클릭 누적 (중복 클릭 허용)
+  const [selectedTableIds, setSelectedTableIds] = useState<string[]>([])
+  // 패널에 표시 중인 테이블 (가장 최근 클릭)
+  const [activeTableId, setActiveTableId] = useState<string | null>(null)
 
   const fetchData = useCallback(async (date: string, slot: SlotKey) => {
     setLoading(true)
@@ -67,7 +71,7 @@ export default function TableMapPage() {
     fetchData(selectedDate, selectedSlot)
   }, [selectedDate, selectedSlot, fetchData])
 
-  // 실시간 구독: 예약 변경 시 테이블맵 자동 갱신
+  // 실시간 구독
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
@@ -76,20 +80,35 @@ export default function TableMapPage() {
         fetchData(selectedDate, selectedSlot)
       })
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [selectedDate, selectedSlot, fetchData])
 
-  // 날짜/슬롯 변경 시 패널 닫기
   const handleDateChange = (date: string) => {
     setSelectedDate(date)
-    setSelectedTable(null)
-  }
-  const handleSlotChange = (slot: SlotKey) => {
-    setSelectedSlot(slot)
-    setSelectedTable(null)
+    setSelectedTableIds([])
+    setActiveTableId(null)
   }
 
+  const handleSlotChange = (slot: SlotKey) => {
+    setSelectedSlot(slot)
+    setSelectedTableIds([])
+    setActiveTableId(null)
+  }
+
+  // 테이블 클릭: 중복 클릭 허용 (이미 선택된 테이블도 추가 선택 유지)
+  const handleTableClick = (table: TableWithStatus) => {
+    setSelectedTableIds(prev =>
+      prev.includes(table.id) ? prev : [...prev, table.id]
+    )
+    setActiveTableId(table.id)
+  }
+
+  const handlePanelClose = () => {
+    setSelectedTableIds([])
+    setActiveTableId(null)
+  }
+
+  const activeTable = data?.tables.find(t => t.id === activeTableId) ?? null
   const slotCounts = data?.slotCounts
 
   return (
@@ -131,36 +150,48 @@ export default function TableMapPage() {
             )
           })}
         </div>
+
+        {/* 선택 해제 버튼 */}
+        {selectedTableIds.length > 0 && (
+          <button
+            onClick={handlePanelClose}
+            className="text-xs text-ping-gray hover:text-white border border-white/10 hover:border-white/30 px-3 py-2 rounded-lg transition-colors"
+          >
+            선택 해제 ({selectedTableIds.length})
+          </button>
+        )}
       </div>
 
       {/* Map + Panel */}
       <div className="flex gap-4 items-start">
         {/* Map container */}
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 overflow-x-auto shrink-0">
+        <div className="bg-black/20 border border-white/10 rounded-xl p-3 shrink-0">
           {loading ? (
-            <div className="flex items-center justify-center w-[560px] h-[720px]">
+            <div className="flex items-center justify-center w-[380px] h-[520px]">
               <p className="text-ping-gray text-sm">불러오는 중...</p>
             </div>
           ) : data ? (
             <TableMap
               tables={data.tables}
-              selectedTableId={selectedTable?.id}
-              onTableClick={setSelectedTable}
+              selectedTableIds={selectedTableIds}
+              activeTableId={activeTableId}
+              onTableClick={handleTableClick}
             />
           ) : (
-            <div className="flex items-center justify-center w-[560px] h-[720px]">
+            <div className="flex items-center justify-center w-[380px] h-[520px]">
               <p className="text-ping-gray text-sm">데이터를 불러올 수 없습니다.</p>
             </div>
           )}
         </div>
 
         {/* Table detail panel */}
-        {selectedTable && (
+        {activeTable && (
           <TableDetailPanel
-            table={selectedTable}
+            table={activeTable}
+            selectedTableIds={selectedTableIds}
             date={selectedDate}
             slot={selectedSlot}
-            onClose={() => setSelectedTable(null)}
+            onClose={handlePanelClose}
             onUpdated={() => fetchData(selectedDate, selectedSlot)}
           />
         )}
