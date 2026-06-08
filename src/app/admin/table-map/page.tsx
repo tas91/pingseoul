@@ -56,8 +56,10 @@ export default function TableMapPage() {
   const fetchData = useCallback(async (date: string) => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/admin/table-map?date=${date}`)
+      const params = new URLSearchParams({ date })
+      const res = await fetch(`/api/admin/table-map?${params}`)
       if (res.ok) setData(await res.json())
+      else setData(null)
     } finally {
       setLoading(false)
     }
@@ -67,13 +69,17 @@ export default function TableMapPage() {
     fetchData(selectedDate)
   }, [selectedDate, fetchData])
 
-  // 실시간 구독
+  // 실시간 구독 — 현재 선택 날짜의 변경만 refetch
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
-      .channel('admin-table-map-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => {
-        fetchData(selectedDate)
+      .channel(`admin-table-map-rt-${selectedDate}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, (payload) => {
+        const changedDate = (payload.new as { business_date?: string })?.business_date
+                         ?? (payload.old as { business_date?: string })?.business_date
+        if (!changedDate || changedDate === selectedDate) {
+          fetchData(selectedDate)
+        }
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
