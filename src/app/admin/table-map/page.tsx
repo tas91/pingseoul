@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useReducer, useState } from 'react'
 import TableMap from '@/components/admin/TableMap'
 import TableDetailPanel from '@/components/admin/TableDetailPanel'
 import { createClient } from '@/lib/supabase/client'
@@ -45,23 +45,51 @@ function todayStr() {
   return new Date().toISOString().split('T')[0]
 }
 
+// 선택 상태를 단일 reducer로 관리 — stale closure 방지
+type SelectionState = { selectedTableIds: string[]; activeTableId: string | null }
+type SelectionAction = { type: 'toggle'; id: string } | { type: 'clear' }
+
+function selectionReducer(state: SelectionState, action: SelectionAction): SelectionState {
+  if (action.type === 'clear') return { selectedTableIds: [], activeTableId: null }
+  const { id } = action
+  if (state.selectedTableIds.includes(id)) {
+    const next = state.selectedTableIds.filter(sid => sid !== id)
+    return {
+      selectedTableIds: next,
+      activeTableId: state.activeTableId === id ? (next.at(-1) ?? null) : state.activeTableId,
+    }
+  }
+  return { selectedTableIds: [...state.selectedTableIds, id], activeTableId: id }
+}
+
+// Realtime payload에서 business_date 안전 추출
+function extractBusinessDate(obj: unknown): string | undefined {
+  if (obj && typeof obj === 'object' && 'business_date' in obj) {
+    const val = (obj as Record<string, unknown>).business_date
+    return typeof val === 'string' ? val : undefined
+  }
+}
+
 export default function TableMapPage() {
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [data, setData] = useState<TableMapResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [selectedTableIds, setSelectedTableIds] = useState<string[]>([])
-  const [activeTableId, setActiveTableId] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [selection, dispatch] = useReducer(selectionReducer, { selectedTableIds: [], activeTableId: null })
+  const { selectedTableIds, activeTableId } = selection
 
-  // 슬롯 무관 — 날짜 기준 전체 조회
-  const fetchData = useCallback(async (date: string) => {
-    setLoading(true)
+  // background=true 이면 전체 로딩 스피너 없이 데이터만 갱신
+  const fetchData = useCallback(async (date: string, background = false) => {
+    if (background) setRefreshing(true)
+    else setLoading(true)
     try {
       const params = new URLSearchParams({ date })
       const res = await fetch(`/api/admin/table-map?${params}`)
       if (res.ok) setData(await res.json())
       else setData(null)
     } finally {
-      setLoading(false)
+      if (background) setRefreshing(false)
+      else setLoading(false)
     }
   }, [])
 
@@ -69,16 +97,15 @@ export default function TableMapPage() {
     fetchData(selectedDate)
   }, [selectedDate, fetchData])
 
-  // 실시간 구독 — 현재 선택 날짜의 변경만 refetch
+  // 실시간 구독 — 현재 날짜의 변경만 백그라운드 refetch
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
       .channel(`admin-table-map-rt-${selectedDate}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, (payload) => {
-        const changedDate = (payload.new as { business_date?: string })?.business_date
-                         ?? (payload.old as { business_date?: string })?.business_date
-        if (!changedDate || changedDate === selectedDate) {
-          fetchData(selectedDate)
+        const changedDate = extractBusinessDate(payload.new) ?? extractBusinessDate(payload.old)
+        if (changedDate === selectedDate) {
+          fetchData(selectedDate, true)
         }
       })
       .subscribe()
@@ -87,29 +114,11 @@ export default function TableMapPage() {
 
   const handleDateChange = (date: string) => {
     setSelectedDate(date)
-    setSelectedTableIds([])
-    setActiveTableId(null)
+    dispatch({ type: 'clear' })
   }
 
-  // 동일 테이블 재클릭 시 선택 해제 (토글)
-  const handleTableClick = (table: TableWithStatus) => {
-    const isSelected = selectedTableIds.includes(table.id)
-    if (isSelected) {
-      const next = selectedTableIds.filter(id => id !== table.id)
-      setSelectedTableIds(next)
-      if (activeTableId === table.id) {
-        setActiveTableId(next[next.length - 1] ?? null)
-      }
-    } else {
-      setSelectedTableIds(prev => [...prev, table.id])
-      setActiveTableId(table.id)
-    }
-  }
-
-  const handlePanelClose = () => {
-    setSelectedTableIds([])
-    setActiveTableId(null)
-  }
+  const handleTableClick = (table: TableWithStatus) => dispatch({ type: 'toggle', id: table.id })
+  const handlePanelClose = () => dispatch({ type: 'clear' })
 
   const activeTable = data?.tables.find(t => t.id === activeTableId) ?? null
   const slotCounts = data?.slotCounts
@@ -118,7 +127,7 @@ export default function TableMapPage() {
     <div className="max-w-5xl">
       <h1 className="text-xl font-semibold text-white mb-6">테이블맵</h1>
 
-      {/* 날짜 + 시간대별 현황 (정보 표시용, 필터 아님) */}
+      {/* 날짜 + 시간대별 현황 */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <input
           type="date"
@@ -127,27 +136,30 @@ export default function TableMapPage() {
           className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-ping-red transition-colors"
         />
 
-        {/* 시간대별 예약 수 — 읽기 전용 현황 */}
         {slotCounts && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-ping-gray">예약 현황</span>
-            {(Object.entries(slotCounts) as [SlotKey, number][]).map(([key, count]) => (
-              <span
-                key={key}
-                className={`text-xs px-2.5 py-1 rounded-lg border ${
-                  count > 0
-                    ? 'border-ping-red/40 text-white bg-ping-red/10'
-                    : 'border-white/10 text-white/30'
-                }`}
-              >
-                {SLOT_LABEL[key]}
-                {count > 0 && <span className="ml-1.5 font-semibold">{count}</span>}
-              </span>
-            ))}
+            {(Object.keys(SLOT_LABEL) as SlotKey[]).map((key) => {
+              const count = slotCounts[key] ?? 0
+              return (
+                <span
+                  key={key}
+                  className={`text-xs px-2.5 py-1 rounded-lg border ${
+                    count > 0
+                      ? 'border-ping-red/40 text-white bg-ping-red/10'
+                      : 'border-white/10 text-white/30'
+                  }`}
+                >
+                  {SLOT_LABEL[key]}
+                  {count > 0 && <span className="ml-1.5 font-semibold">{count}</span>}
+                </span>
+              )
+            })}
           </div>
         )}
 
-        {/* 선택 해제 */}
+        {refreshing && <span className="text-xs text-ping-gray animate-pulse">업데이트 중...</span>}
+
         {selectedTableIds.length > 0 && (
           <button
             onClick={handlePanelClose}
@@ -185,7 +197,7 @@ export default function TableMapPage() {
             selectedTableIds={selectedTableIds}
             date={selectedDate}
             onClose={handlePanelClose}
-            onUpdated={() => fetchData(selectedDate)}
+            onUpdated={() => fetchData(selectedDate, true)}
           />
         )}
       </div>
