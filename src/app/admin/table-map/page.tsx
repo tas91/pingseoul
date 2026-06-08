@@ -55,9 +55,12 @@ export default function TableMapPage() {
   // 슬롯 무관 — 날짜 기준 전체 조회
   const fetchData = useCallback(async (date: string) => {
     setLoading(true)
-    const res = await fetch(`/api/admin/table-map?date=${date}`)
-    if (res.ok) setData(await res.json())
-    setLoading(false)
+    try {
+      const res = await fetch(`/api/admin/table-map?date=${date}`)
+      if (res.ok) setData(await res.json())
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -84,17 +87,15 @@ export default function TableMapPage() {
 
   // 동일 테이블 재클릭 시 선택 해제 (토글)
   const handleTableClick = (table: TableWithStatus) => {
-    setSelectedTableIds(prev => {
-      if (prev.includes(table.id)) {
-        const next = prev.filter(id => id !== table.id)
-        if (activeTableId === table.id) {
-          setActiveTableId(next[next.length - 1] ?? null)
-        }
-        return next
+    const isSelected = selectedTableIds.includes(table.id)
+    if (isSelected) {
+      const next = selectedTableIds.filter(id => id !== table.id)
+      setSelectedTableIds(next)
+      if (activeTableId === table.id) {
+        setActiveTableId(next[next.length - 1] ?? null)
       }
-      return [...prev, table.id]
-    })
-    if (!selectedTableIds.includes(table.id)) {
+    } else {
+      setSelectedTableIds(prev => [...prev, table.id])
       setActiveTableId(table.id)
     }
   }
