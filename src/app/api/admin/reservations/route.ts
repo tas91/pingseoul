@@ -45,14 +45,14 @@ export async function POST(request: Request) {
     if (!body.guest_name?.trim()) {
       return NextResponse.json({ error: '예약자명을 입력해 주세요.' }, { status: 400 })
     }
-    if (!body.visit_date) {
-      return NextResponse.json({ error: '방문일을 입력해 주세요.' }, { status: 400 })
+    if (!body.visit_date || !/^\d{4}-\d{2}-\d{2}$/.test(body.visit_date) || isNaN(Date.parse(body.visit_date))) {
+      return NextResponse.json({ error: '유효한 방문일을 입력해 주세요. (YYYY-MM-DD)' }, { status: 400 })
     }
     if (!body.arrival_slot || !ALLOWED_SLOTS.includes(body.arrival_slot as TimeSlot)) {
       return NextResponse.json({ error: '유효한 타임슬롯을 선택해 주세요.' }, { status: 400 })
     }
-    if (!body.people_count || body.people_count < 1) {
-      return NextResponse.json({ error: '인원수를 입력해 주세요.' }, { status: 400 })
+    if (!Number.isInteger(body.people_count) || body.people_count < 1 || body.people_count > 20) {
+      return NextResponse.json({ error: '인원수는 1~20 사이 정수여야 합니다.' }, { status: 400 })
     }
 
     const status = body.status === 'pending' ? 'pending' : 'confirmed'

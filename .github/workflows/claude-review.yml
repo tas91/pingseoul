@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pull-requests: write
@@ -56,8 +60,9 @@ jobs:
             -H "content-type: application/json" \
             -d "$PAYLOAD" | jq -r '.content[0].text // "리뷰 생성 실패"')
 
-          COMMENT="## 🤖 Claude AI 코드 리뷰\n\n$REVIEW\n\n---\n*Powered by Claude claude-sonnet-4-6 via GitHub Actions*"
+          printf '## 🤖 Claude AI 코드 리뷰\n\n%s\n\n---\n*Powered by Claude claude-sonnet-4-6 via GitHub Actions*' \
+            "$REVIEW" > comment.txt
 
-          gh pr comment $PR_NUMBER \
-            --repo $REPO \
-            --body "$(echo -e "$COMMENT")"
+          gh pr comment "$PR_NUMBER" \
+            --repo "$REPO" \
+            --body-file comment.txt
