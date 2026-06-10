@@ -4,6 +4,24 @@ if ! command -v gh &>/dev/null; then
   exit 0
 fi
 
+# fnm 등 버전 매니저가 만든 임시 경로 대신 안정적인 경로 우선 사용
+# Windows(.exe)와 Unix 경로 모두 탐색
+CLAUDE_BIN=""
+for candidate in \
+  "$HOME/.local/bin/claude" \
+  "$HOME/.local/bin/claude.exe" \
+  "/usr/local/bin/claude" \
+  "$(command -v claude 2>/dev/null)"; do
+  if [ -x "$candidate" ]; then
+    CLAUDE_BIN="$candidate"
+    break
+  fi
+done
+
+if [ -z "$CLAUDE_BIN" ]; then
+  exit 0
+fi
+
 BRANCH=$(git branch --show-current)
 
 PR_NUMBER=$(gh pr view "$BRANCH" --json number -q '.number' 2>/dev/null)
@@ -21,6 +39,17 @@ if [ -z "$DIFF" ]; then
   exit 0
 fi
 
+# gh api PATCH 헬퍼 — node로 JSON 인코딩하여 특수문자 안전 처리 (jq 불필요)
+patch_comment() {
+  local comment_id="$1"
+  local body="$2"
+  printf '%s' "$body" | node -e "
+    let b = '';
+    process.stdin.on('data', d => b += d);
+    process.stdin.on('end', () => process.stdout.write(JSON.stringify({body: b})));
+  " | gh api "repos/$REPO/issues/comments/$comment_id" -X PATCH --input - > /dev/null
+}
+
 # 리뷰를 백그라운드 실행 → push가 지연되지 않음
 (
   echo "🤖 AI 코드 리뷰 시작 (PR #$PR_NUMBER)..."
@@ -33,9 +62,13 @@ fi
     --jq '.[] | select(.body | test("🤖 AI Code Review")) | .id' 2>/dev/null | head -1)
 
   if [ -n "$COMMENT_ID" ]; then
-    gh api "repos/$REPO/issues/comments/$COMMENT_ID" -X PATCH -f body="$PENDING_BODY" > /dev/null
+    patch_comment "$COMMENT_ID" "$PENDING_BODY"
   else
-    gh pr comment "$PR_NUMBER" --body "$PENDING_BODY" > /dev/null
+    printf '%s' "$PENDING_BODY" | node -e "
+      let b = '';
+      process.stdin.on('data', d => b += d);
+      process.stdin.on('end', () => process.stdout.write(JSON.stringify({body: b})));
+    " | gh api "repos/$REPO/issues/$PR_NUMBER/comments" -X POST --input - > /dev/null
     COMMENT_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
       --jq '.[-1].id' 2>/dev/null)
   fi
@@ -83,14 +116,17 @@ Critical 이슈가 1개 이상 있으면:
 --- PR DIFF ---
 $DIFF"
 
-  REVIEW=$(echo "$PROMPT" | claude -p --allowedTools "" 2>/dev/null)
+  REVIEW=$(echo "$PROMPT" | env -u CLAUDECODE "$CLAUDE_BIN" -p --allowedTools "" 2>/dev/null)
 
   if [ -z "$REVIEW" ]; then
     echo "❌ 리뷰 생성 실패"
+    patch_comment "$COMMENT_ID" "## 🤖 AI Code Review
+
+> ❌ **리뷰 생성에 실패했습니다.** 수동으로 리뷰를 진행해주세요."
     exit 0
   fi
 
-  gh api "repos/$REPO/issues/comments/$COMMENT_ID" -X PATCH -f body="$REVIEW" > /dev/null
+  patch_comment "$COMMENT_ID" "$REVIEW"
   echo "✅ PR #$PR_NUMBER 리뷰 코멘트 업데이트 완료"
 ) &
 disown

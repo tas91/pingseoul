@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 
@@ -51,9 +52,12 @@ export default function MyPage() {
           </div>
         </div>
 
-        <p className="text-ping-gray text-sm text-center mt-8">
-          예약 내역 및 포인트 기능은 준비 중입니다.
-        </p>
+        <Link
+          href="/mypage/reservations"
+          className="mt-6 block w-full py-3 text-center border border-white/10 text-white/70 hover:text-white hover:border-white/30 rounded-lg text-sm transition-colors"
+        >
+          내 예약 보기
+        </Link>
 
         <button
           onClick={handleLogout}
