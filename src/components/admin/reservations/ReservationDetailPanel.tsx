@@ -100,6 +100,7 @@ export default function ReservationDetailPanel({ reservation: r, onClose, onUpda
           <Row label="고객명" value={r.guest_name} />
           <Row label="전화번호" value={r.guest_phone} />
           <Row label="이메일" value={r.guest_email} />
+          <Row label="인스타그램" value={r.guest_instagram} />
           <Row label="인원" value={r.people_count ? `${r.people_count}명` : null} />
         </section>
 
