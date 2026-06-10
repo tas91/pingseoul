@@ -129,6 +129,7 @@ $DIFF"
   patch_comment "$COMMENT_ID" "$REVIEW"
   echo "✅ PR #$PR_NUMBER 리뷰 코멘트 업데이트 완료"
 ) &
-disown
+REVIEW_PID=$!
+disown "$REVIEW_PID" 2>/dev/null || true
 
 exit 0
