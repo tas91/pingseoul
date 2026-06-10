@@ -2,6 +2,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 const ALLOWED_STATUSES = ['confirmed', 'rejected', 'in_use', 'completed', 'pending', 'cancelled', 'no_show'] as const
 type AllowedStatus = typeof ALLOWED_STATUSES[number]
 
@@ -9,7 +11,7 @@ interface PatchBody {
   status?: string
   reject_reason?: string
   admin_memo?: string
-  table_id?: string
+  table_id?: string | null
 }
 
 export async function PATCH(

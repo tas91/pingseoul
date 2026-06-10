@@ -2,6 +2,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveAdmin } from '@/lib/supabase/auth-utils'
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   const user = await getActiveAdmin()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

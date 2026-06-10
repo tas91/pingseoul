@@ -2,6 +2,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 type DisplayStatus = 'available' | 'pending' | 'confirmed' | 'in_use' | 'blocked'
 
 const STATUS_PRIORITY: Record<string, number> = { in_use: 3, confirmed: 2, pending: 1 }
@@ -72,8 +74,8 @@ export async function GET(req: NextRequest) {
     if (key in slotCounts) slotCounts[key]++
   }
 
-  // Build final table list with displayStatus
-  const result = tables.map((table) => {
+  // Build final table list with displayStatus (display_order null인 테스트 테이블 제외)
+  const result = tables.filter(t => t.display_order !== null).map((table) => {
     if (!table.is_active) {
       return { ...table, displayStatus: 'blocked' as DisplayStatus }
     }
