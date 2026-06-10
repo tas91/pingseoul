@@ -11,7 +11,7 @@ interface PatchBody {
   status?: string
   reject_reason?: string
   admin_memo?: string
-  table_id?: string
+  table_id?: string | null
 }
 
 export async function PATCH(
