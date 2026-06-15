@@ -1,13 +1,9 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { aggregateByTable, resolveDisplayStatus, buildSlotCounts, ACTIVE_STATUSES, type DisplayStatus } from '@/lib/table-map-utils'
 
 export const dynamic = 'force-dynamic'
-
-type DisplayStatus = 'available' | 'pending' | 'confirmed' | 'in_use' | 'blocked'
-
-const STATUS_PRIORITY: Record<string, number> = { in_use: 3, confirmed: 2, pending: 1 }
-const ACTIVE_STATUSES = ['pending', 'confirmed', 'in_use']
 
 export async function GET(req: NextRequest) {
   const supabase = createServerSupabaseClient()
@@ -45,49 +41,14 @@ export async function GET(req: NextRequest) {
   const reservations = reservationsResult.data ?? []
   const slotCountRows = slotCountsResult.data ?? []
 
-  // Aggregate reservations by table_id (highest-priority status wins, count all)
-  const resByTable: Record<string, { reservation_number: string; people_count: number; status: string; count: number }> = {}
-  for (const r of reservations) {
-    if (!r.table_id) continue
-    const entry = resByTable[r.table_id]
-    if (entry) {
-      entry.count++
-      if ((STATUS_PRIORITY[r.status] ?? 0) > (STATUS_PRIORITY[entry.status] ?? 0)) {
-        entry.reservation_number = r.reservation_number
-        entry.people_count = r.people_count
-        entry.status = r.status
-      }
-    } else {
-      resByTable[r.table_id] = {
-        reservation_number: r.reservation_number,
-        people_count: r.people_count,
-        status: r.status,
-        count: 1,
-      }
-    }
-  }
-
-  // Slot counts (confirmed + in_use per slot)
-  const slotCounts = { slot_00: 0, slot_02: 0, slot_04: 0, slot_06: 0 }
-  for (const r of slotCountRows) {
-    const key = r.arrival_slot as keyof typeof slotCounts
-    if (key in slotCounts) slotCounts[key]++
-  }
+  const resByTable = aggregateByTable(reservations)
+  const slotCounts = buildSlotCounts(slotCountRows)
 
   // Build final table list with displayStatus (display_order null인 테스트 테이블 제외)
   const result = tables.filter(t => t.display_order !== null).map((table) => {
-    if (!table.is_active) {
-      return { ...table, displayStatus: 'blocked' as DisplayStatus }
-    }
+    const displayStatus: DisplayStatus = resolveDisplayStatus(table, resByTable)
     const res = resByTable[table.id]
-    if (!res) {
-      return { ...table, displayStatus: 'available' as DisplayStatus }
-    }
-    const displayStatus = (res.status === 'in_use' ? 'in_use'
-      : res.status === 'confirmed' ? 'confirmed'
-      : res.status === 'pending' ? 'pending'
-      : 'available') as DisplayStatus
-    return { ...table, displayStatus, reservation: res }
+    return res ? { ...table, displayStatus, reservation: res } : { ...table, displayStatus }
   })
 
   return NextResponse.json({ tables: result, slotCounts })

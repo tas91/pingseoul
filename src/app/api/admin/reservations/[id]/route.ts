@@ -1,18 +1,9 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { validateStatusPatch, type PatchBody } from '@/lib/reservation-transitions'
 
 export const dynamic = 'force-dynamic'
-
-const ALLOWED_STATUSES = ['confirmed', 'rejected', 'in_use', 'completed', 'pending', 'cancelled', 'no_show'] as const
-type AllowedStatus = typeof ALLOWED_STATUSES[number]
-
-interface PatchBody {
-  status?: string
-  reject_reason?: string
-  admin_memo?: string
-  table_id?: string | null
-}
 
 export async function PATCH(
   request: Request,
@@ -39,28 +30,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
 
-    if (body.status !== undefined && !ALLOWED_STATUSES.includes(body.status as AllowedStatus)) {
-      return NextResponse.json({ error: '유효하지 않은 status입니다.' }, { status: 400 })
+    const result = validateStatusPatch(body)
+    if ('error' in result) {
+      return NextResponse.json({ error: result.error }, { status: 400 })
     }
-
-    if (body.status === 'rejected' && !body.reject_reason?.trim()) {
-      return NextResponse.json({ error: '거절 사유를 입력해 주세요.' }, { status: 400 })
-    }
-
-    const updates: Record<string, unknown> = {}
-
-    if (body.status !== undefined) updates.status = body.status
-    if (body.reject_reason !== undefined) updates.reject_reason = body.reject_reason.trim()
-    if (body.admin_memo !== undefined) updates.admin_memo = body.admin_memo
-    if (body.table_id !== undefined) updates.table_id = body.table_id
-
-    if (body.status === 'confirmed') updates.approved_at = new Date().toISOString()
-    if (body.status === 'in_use') updates.checked_in_at = new Date().toISOString()
-    if (body.status === 'completed') updates.checked_out_at = new Date().toISOString()
-
-    if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: '변경할 필드가 없습니다.' }, { status: 400 })
-    }
+    const { updates } = result
 
     const adminClient = createAdminClient()
     const { data, error } = await adminClient
