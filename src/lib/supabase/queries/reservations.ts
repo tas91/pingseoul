@@ -5,6 +5,7 @@ const ADMIN_SELECT = `
   id, reservation_number, created_at, business_date, arrival_slot, visit_time,
   people_count, status, request_note, admin_memo, reject_reason, incentive_type,
   approved_at, checked_in_at, checked_out_at, expires_at,
+  guest_name, guest_phone, guest_instagram,
   profiles!reservations_user_id_fkey(name, phone, email),
   tables(id, type)
 `
@@ -35,9 +36,10 @@ function mapAdminRow(row: any): ReservationListItem {
     checked_in_at: row.checked_in_at ?? null,
     checked_out_at: row.checked_out_at ?? null,
     expires_at: row.expires_at ?? null,
-    guest_name: row.profiles?.name ?? null,
-    guest_phone: row.profiles?.phone ?? null,
+    guest_name: row.profiles?.name ?? row.guest_name ?? null,
+    guest_phone: row.profiles?.phone ?? row.guest_phone ?? null,
     guest_email: row.profiles?.email ?? null,
+    guest_instagram: row.guest_instagram ?? null,
     table: row.tables ? { id: row.tables.id, type: row.tables.type } : null,
   }
 }
@@ -64,6 +66,7 @@ function mapUserRow(row: any): ReservationListItem {
     guest_name: null,
     guest_phone: null,
     guest_email: null,
+    guest_instagram: null,
     table: row.tables ? { id: row.tables.id, type: row.tables.type } : null,
   }
 }

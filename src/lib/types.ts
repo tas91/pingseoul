@@ -33,6 +33,7 @@ export interface ReservationListItem {
   guest_name: string | null
   guest_phone: string | null
   guest_email: string | null
+  guest_instagram: string | null
   table: { id: string; type: string } | null
 }
 
