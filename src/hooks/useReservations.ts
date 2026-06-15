@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { ReservationListItem, ReservationFilters } from '@/lib/types'
 
-function buildQuery(filters: ReservationFilters): string {
+export function buildQuery(filters: ReservationFilters): string {
   const params = new URLSearchParams()
   if (filters.business_date) params.set('business_date', filters.business_date)
   if (filters.status && filters.status !== 'all') params.set('status', filters.status)
